@@ -1,0 +1,43 @@
+install.packages("RSelenium")
+
+library(tidyverse)
+library(RSelenium)
+library(wdman)
+library(netstat)
+library(readxl)
+
+edital <- read_xlsx("~/GitHub/sa_maismedicos/dados/edital_maismedicos.xlsx")
+
+selenium()
+
+selenium_object <- chrome(retcommand = T, verbose = F, check = F)
+
+selenium_object
+
+binman::list_versions("chromedriver")
+
+Sys.setlocale("LC_ALL", "C")
+remote_driver <- rsDriver(browser = "chrome",
+                          chromever = "129.0.6668.70",
+                          verbose = F,
+                          port = free_port())
+
+remDr <- remote_driver$client
+
+#ABRINDO O SITE
+remDr$open()
+remDr$navigate('https://cnes.datasus.gov.br/pages/profissionais/consulta.jsp')
+remDr$maxWindowSize()
+
+#SELECIONANDO O CAMPO DE PESQUISA
+campo_pesquisa <- remDr$findElement(using = "css selector", value = "#pesquisaValue")
+
+#PREENCHENDO O CAMPO DE PESQUISA
+campo_pesquisa$sendKeysToElement(list("Alef Santos"))
+
+remDr$findElement(using = 'link text', 'Pesquisar')
+
+#CLICANDO NO BOTÃO DE PESQUISAR
+botao_pesquisa <- remDr$findElement(using = "css selector", value = ".btn.btn-primary")
+botao_pesquisa$clickElement()
+

@@ -1,0 +1,18 @@
+install.packages("wdman")
+
+library(RSelenium)
+library(wdman)
+library(netstat)
+
+selenium()
+
+selenium_object <- chrome(retcommand = T, verbose = F, check = F)
+
+selenium_object
+
+binman::list_versions("chromedriver")
+
+remote_driver <- rsDriver(browser = "chrome",
+                          chromever = "129.0.6668.70",
+                          verbose = F,
+                          port = free_port())
