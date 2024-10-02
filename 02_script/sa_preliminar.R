@@ -1,26 +1,41 @@
+options(scipen = 999)
+
+install.packages("geosphere")
 library(tidyverse)
 library(readxl)
+library(geosphere)
 
-base <- read.csv("GitHub/sa_maismedicos/dados/maismedicos_completo.csv")
 
 
-# Criando variável de localidade e selecionando as variáveis de interesse
-tratamento <- base |> 
-  mutate(local = paste(uf_sigla, municipio, sep = "-")) |> 
-  select(local, NOMEPROF, CNS_PROF, COMPETEN) |> 
-  mutate(CNS_PROF = as.character(CNS_PROF))
+cns_inscricao <- read_excel("01_dados/edital_maismedicos_cns.xlsx") |> 
+  select(cod_ibge, nome, resultado, uf) |> 
+  rename(cns = resultado) |> 
+  rename(municipio_destino = cod_ibge) |> 
+  rename(uf_destino = uf) |> 
+  mutate(cns = as.numeric(cns))
 
-#Atribuindo formato data para competência e filtrando apenas as datas posteriores a janeiro/2019
-tratamento2 <- tratamento %>%
-  mutate(COMPETEN = as.Date(paste0(COMPETEN, "01"), format = "%Y%m%d")) %>%  # Convertendo para data
-  arrange(COMPETEN) |> 
-  filter(COMPETEN >= as.Date("2019-04-01"))
 
-#Transformando os dados de longo para largo
-dados_largo <- tratamento2 |> 
-  pivot_wider(names_from = COMPETEN, values_from = local)
+maismedicos_completo <- read_csv("01_dados/maismedicos_completo.csv")
 
-#Retirando os "NULL"
-teste <- dados_largo |> 
-  mutate(across(3:30, as.character)) |> 
-  filter(if_all(2:67, ~ . != "NULL"))
+
+base_tratada <- 
+  maismedicos_completo |> 
+  left_join(cns_inscricao, by = c("CNS_PROF"="cns")) |> 
+  mutate(COMPETEN = as.character(COMPETEN)) |> 
+  mutate(ano = substr(COMPETEN, 1, 4)) |> 
+  mutate(mesma_cidade = if_else((municipio_destino == CODUFMUN), "Mesma cidade","Outra cidade")) |> 
+  mutate(mesmo_estado = if_else((uf_destino == uf_sigla), "Mesmo estado", "Outro estado")) |> 
+  group_by(CNS_PROF, COMPETEN) |> 
+  mutate(vinculo = if_else(n() > 1, "Multivinculo", "Vinculo unico")) |> 
+  ungroup()
+
+
+
+base_tratada |> 
+  filter(ano == '2024') |> 
+  group_by(NOMEPROF, mesmo_estado) |> 
+  count() |> 
+  ungroup() |> 
+  group_by(mesmo_estado) |> 
+  count() |> 
+  ggplot(aes(x = mesmo_estado, y = n)) + geom_col()

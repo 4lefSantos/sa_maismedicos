@@ -1,0 +1,101 @@
+
+options(scipen = 999)
+
+library(tidyverse)
+library(readxl)
+library(geosphere)
+
+
+
+cns_inscricao <- read_excel("01_dados/edital_maismedicos_cns.xlsx") |> 
+  select(cod_ibge, nome, resultado, uf) |> 
+  rename(cns = resultado) |> 
+  rename(municipio_destino = cod_ibge) |> 
+  rename(uf_destino = uf) |> 
+  mutate(cns = as.numeric(cns))
+
+
+maismedicos_completo <- read_csv("01_dados/maismedicos_completo.csv")
+
+
+base_tratada <- 
+  maismedicos_completo |> 
+  left_join(cns_inscricao, by = c("CNS_PROF" = "cns")) |> 
+  mutate(COMPETEN = as.character(COMPETEN)) |> 
+  mutate(ano = substr(COMPETEN, 1, 4)) |> 
+  filter(COMPETEN == '201906' | COMPETEN == '202406') |> 
+  mutate(mesma_cidade = if_else((municipio_destino == CODUFMUN), "Mesma cidade", "Outra cidade")) |> 
+  mutate(mesmo_estado = if_else((uf_destino == uf_sigla), "Mesmo estado", "Outro estado")) |> 
+  mutate(migracao = case_when(
+    # Do Norte para outras regiões
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) & 
+      uf_sigla %in% c("SC", "RS", "PR") ~ "Saiu do norte e foi para o sul",
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) & 
+      uf_sigla %in% c("SP", "RJ", "ES", "MG") ~ "Saiu do norte e foi para o sudeste",
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) & 
+      uf_sigla %in% c("GO", "MT", "MS", "DF") ~ "Saiu do norte e foi para o centro-oeste",
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) & 
+      uf_sigla %in% c("AM", "TO", "AP", "RR", "PA", "RO", "AC") ~ "Permaneceu no norte",
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) & 
+      uf_sigla %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE") ~ "Saiu do norte e foi para o nordeste",
+    
+    # Do Nordeste para outras regiões
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) & 
+      uf_sigla %in% c("SC", "RS", "PR") ~ "Saiu do nordeste para o sul",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) & 
+      uf_sigla %in% c("SP", "RJ", "ES", "MG") ~ "Saiu do nordeste e foi para o sudeste",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) & 
+      uf_sigla %in% c("GO", "MT", "MS", "DF") ~ "Saiu do nordeste e foi para o centro-oeste",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) & 
+      uf_sigla %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE") ~ "Permaneceu no nordeste",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) & 
+      uf_sigla %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA") ~ "Saiu do nordeste e foi para o norte",
+    
+    # Do Centro-Oeste para outras regiões
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) & 
+      uf_sigla %in% c("SC", "RS", "PR") ~ "Saiu do centro-oeste e foi para o sul",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) & 
+      uf_sigla %in% c("SP", "RJ", "ES", "MG") ~ "Saiu do centro-oeste e foi para o sudeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) & 
+      uf_sigla %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE") ~ "Saiu do centro-oeste e foi para o nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) & 
+      uf_sigla %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA") ~ "Saiu do centro-oeste e foi para o norte",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) & 
+      uf_sigla %in% c("GO", "MT", "MS", "DF") ~ "Permaneceu no centro-oeste",
+    
+    # Do Sul para outras regiões
+    (uf_destino %in% c("SC", "RS", "PR")) & 
+      uf_sigla %in% c("SP", "RJ", "ES", "MG") ~ "Saiu do sul e foi para o sudeste",
+    (uf_destino %in% c("SC", "RS", "PR")) & 
+      uf_sigla %in% c("GO", "MT", "MS", "DF") ~ "Saiu do sul e foi para o centro-oeste",
+    (uf_destino %in% c("SC", "RS", "PR")) & 
+      uf_sigla %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA") ~ "Saiu do sul e foi para o norte",
+    (uf_destino %in% c("SC", "RS", "PR")) & 
+      uf_sigla %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE") ~ "Saiu do sul e foi para o nordeste",
+    (uf_destino %in% c("SC", "RS", "PR")) & 
+      uf_sigla %in% c("SC", "RS", "PR") ~ "Permaneceu no sul",
+    
+    # Do Sudeste para outras regiões
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) & 
+      uf_sigla %in% c("GO", "MT", "MS", "DF") ~ "Saiu do sudeste e foi para o centro-oeste",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) & 
+      uf_sigla %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA") ~ "Saiu do sudeste e foi para o norte",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) & 
+      uf_sigla %in% c("SC", "RS", "PR") ~ "Saiu do sudeste e foi para o sul",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) & 
+      uf_sigla %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE") ~ "Saiu do sudeste e foi para o nordeste",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) & 
+      uf_sigla %in% c("SP", "RJ", "ES", "MG") ~ "Permaneceu no sudeste",
+    
+    TRUE ~ "outros casos"
+  ))
+
+
+base_tratada |> 
+  filter(ano == '2024') |> 
+  group_by(NOMEPROF, mesmo_estado) |> 
+  count() |> 
+  ungroup() |> 
+  group_by(mesmo_estado) |> 
+  count() |> 
+  ggplot(aes(x = mesmo_estado, y = n)) + geom_col()
