@@ -91,11 +91,57 @@ base_tratada <-
   ))
 
 
-base_tratada |> 
-  filter(ano == '2024') |> 
-  group_by(NOMEPROF, mesmo_estado) |> 
+tipologia_municipal <- read_xlsx("01_dados/tipologia_municipal_rural_urbano.xlsx") |> 
+  mutate(CD_GCMUN = substr(CD_GCMUN,1,6))
+
+
+#Agregando tipologia municipal de onde o profissional atua
+base_tratada$CODUFMUN <- as.character(base_tratada$CODUFMUN)
+
+base_tratada <- base_tratada |> 
+  left_join(tipologia_municipal, by = c("CODUFMUN" = "CD_GCMUN")) |> 
+  select(-NM_UF, -SIG_UF, -NM_MUN) |> 
+  rename(tipo_exercicio = TIPO)
+
+base_tratada$tipo_exercicio <- gsub("Rural", "Rural ",base_tratada$tipo_exercicio)
+base_tratada$tipo_exercicio <- gsub("Intermediario", "Intermediario ",base_tratada$tipo_exercicio)
+
+#Agregando tipologia municipal de onde o profissional foi chamado
+base_tratada$municipio_destino <- as.character(base_tratada$municipio_destino)
+base_tratada <- base_tratada |> 
+  left_join(tipologia_municipal, by = c("municipio_destino" = "CD_GCMUN")) |> 
+  select(-NM_UF, -SIG_UF, -NM_MUN) |> 
+  rename(tipo_destino = TIPO)
+
+base_tratada$tipo_destino <- gsub("Rural", "Rural ",base_tratada$tipo_destino)
+base_tratada$tipo_destino <- gsub("Intermediario", "Intermediario ",base_tratada$tipo_destino)
+
+base_tratada <- base_tratada |> 
+  mutate(migracao_tipo = ifelse((tipo_destino == tipo_exercicio), paste("Permaneceu no", tipo_destino, sep = " "),
+                                paste("Saiu do", tipo_destino, "e foi para o", tipo_exercicio)))
+
+teste <- base_tratada |> 
+  filter(ano == 2024) |> 
+  group_by(migracao_tipo) |> 
+  count() |> 
+  mutate(percentual = n/ sum(n) )
+
+teste <- base_tratada |> 
+  filter(ano == 2024) |> 
+  group_by(migracao_tipo) |> 
   count() |> 
   ungroup() |> 
-  group_by(mesmo_estado) |> 
-  count() |> 
-  ggplot(aes(x = mesmo_estado, y = n)) + geom_col()
+  mutate(percentual = round((n / sum(n))*100, 2))
+
+teste |> 
+  ggplot(aes(x = reorder(migracao_tipo, percentual), y = percentual)) + geom_col() + 
+  coord_flip() + theme_minimal()
+
+
+regioes_influencia <- read_xlsx("01_dados/regioes_influencia.xlsx") |> 
+  mutate(codmun = substr(codmun,1,6)) |> 
+  select(codmun, regiao_influencia)
+
+teste <- base_tratada |> 
+  left_join(regioes_influencia, by = c("municipio_destino" = "codmun")) |> 
+  select(everything(), regiao_influencia)
