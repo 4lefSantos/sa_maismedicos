@@ -108,78 +108,21 @@ base_tratada <- base_tratada %>%
     (uf_sigla %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
     TRUE ~ "Outro"))
 
-
-
-
-#Contagem de profissionais na competência 201906
-compet2019 <- base_tratada |>
-  filter(ano == 2019) |> 
-  group_by(CNS_PROF) |> 
-  count()
-
-compet2019$CNS_PROF <- as.character(compet2019$CNS_PROF)
-base_tratada$CNS_PROF <- as.character(base_tratada$CNS_PROF)
-
-#Contagem de profissionais na competência 202406
-compet2024 <- base_tratada |>
-  filter(ano == 2024) |> 
-  group_by(CNS_PROF) |> 
-  count()
-
-
-#Filtrando a base para manter apenas os profissionais que estão presentes em ambas competências
-base_tratada <- base_tratada |> 
-  filter(CNS_PROF %in% intersect(compet2019$CNS_PROF, compet2024$CNS_PROF))
-
-
-#Contagem de profissionais chamados por UF
 tabela_uf_destino <- base_tratada %>% 
   filter(ano == 2019) %>%
-  group_by(uf_destino) %>%
-  summarise(cont_destino = n_distinct(CNS_PROF))
+  group_by(uf_destino) %>% 
+  count()
 
 tabela_uf_destino %>%
-  ungroup() %>% 
-  summarise(total = sum(cont_destino))
+  ungroup() %>%  # Remove qualquer agrupamento
+  summarise(total = sum(n))
 
-#Contagem de profissionais por UF em exercicio em 2024
-tabela_uf_exercicio <- base_tratada %>% 
-  filter(ano == 2024) %>%
-  group_by(uf_sigla) %>%
-  summarise(cont_exercicio = n_distinct(CNS_PROF))
+base_tratada %>%
+  filter(ano == 2019)
+  summarise(distinct_count = n_distinct(CNS_PROF))
 
-tabela_uf_exercicio %>%
-  ungroup() %>% 
-  summarise(total = sum(cont_exercicio))
-
-#Comparativo de profissionais por UF de destino e de exercicio
-comparativo_uf <- tabela_uf_destino |> 
-  left_join(tabela_uf_exercicio, by = c("uf_destino" = "uf_sigla"))
-
-#Contagem de profissionais chamados por região do Brasil
 tabela_regiao_destino <- base_tratada %>% 
-  filter(ano == 2019) %>%
-  group_by(regiao_brasil_destino) %>%
-  summarise(cont_regiao_destino = n_distinct(CNS_PROF))
-
-tabela_regiao_destino %>%
-  ungroup() %>% 
-  summarise(total = sum(cont_regiao_destino))
-
-#Contagem de profissionais em exercicio em 2024 por região do Brasil
-tabela_regiao_exercicio<- base_tratada %>% 
-  filter(ano == 2024) %>%
-  group_by(regiao_brasil_exercicio) %>%
-  summarise(cont_regiao_exercicio = n_distinct(CNS_PROF))
-
-tabela_regiao_exercicio %>%
-  ungroup() %>% 
-  summarise(total = sum(cont_regiao_exercicio))
-
-#Comparativo de profissionais por região do Brasul de destino e de exercicio
-comparativo_regiao <- tabela_regiao_destino |> 
-  left_join(tabela_regiao_exercicio, by = c("regiao_brasil_destino" = "regiao_brasil_exercicio"))
-  
+  filter(ano == 2024)
 
 tipologia_municipal <- read_xlsx("01_dados/tipologia_municipal_rural_urbano.xlsx") |> 
   mutate(CD_GCMUN = substr(CD_GCMUN,1,6))
@@ -246,19 +189,10 @@ base_tratada <- base_tratada %>%
   mutate(migraçao_regiao_influencia = ifelse(regiao_influencia_destino == regiao_influencia_exercicio,
                                              "Permaneceu na mesma região", "Migrou para outra região"))
 
-retencao_regiao_influencia <- base_tratada %>% 
+teste <- base_tratada %>% 
   filter(ano == 2024) %>% 
   group_by(uf_destino, migraçao_regiao_influencia) %>% 
   count()
-
-retencao_regiao_influencia <- retencao_regiao_influencia |> 
-  pivot_wider(names_from = migraçao_regiao_influencia,  values_from = n) |> 
-  rename(migrou_outra_regiao = `Migrou para outra região`) |> 
-  rename(permaneceu_regiao = `Permaneceu na mesma região`)
-
-teste <- retencao_regiao_influencia |> 
-  mutate(retencao = permaneceu_regiao/(permaneceu_regiao + migrou_outra_regiao))
-
 
 teste %>% 
   ggplot(aes(x = n, y = reorder(uf_destino, n), color = migraçao_regiao_influencia)) +
