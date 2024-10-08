@@ -1,0 +1,5 @@
+"0","seqplot(seq, type = ""transitions"", main = ""Gráfico de Transição"")
+"
+"2","Error in seqplot(seq, type = ""transitions"", main = ""Gráfico de Transição"") : 
+  não foi possível encontrar a função ""seqplot""
+"

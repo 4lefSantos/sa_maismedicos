@@ -1,0 +1,7 @@
+"0","teste <- base_tratada |> 
+  filter(CNS_PROF == cns_validos$CNS_PROF)
+"
+"2","Warning: [38;5;232mThere was 1 warning in `filter()`.[39m
+[38;5;232m[36mℹ[38;5;232m In argument: `CNS_PROF == cns_validos$CNS_PROF`.[39m
+Caused by warning in `CNS_PROF == cns_validos$CNS_PROF`:
+[33m![39m comprimento do objeto maior não é múltiplo do comprimento do objeto menor"

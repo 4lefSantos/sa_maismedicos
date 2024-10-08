@@ -1,0 +1,8 @@
+"0","seqtab(seq, idx=0) |> 
+  nrow()
+"
+"2","Warning: '-' character in state codes may cause invalid results"
+"1","[1]"
+"1"," 210"
+"1","
+"

@@ -154,7 +154,8 @@ tabela_uf_exercicio %>%
 
 #Comparativo de profissionais por UF de destino e de exercicio
 comparativo_uf <- tabela_uf_destino |> 
-  left_join(tabela_uf_exercicio, by = c("uf_destino" = "uf_sigla"))
+  left_join(tabela_uf_exercicio, by = c("uf_destino" = "uf_sigla")) |> 
+  mutate(percentual = cont_exercicio/(cont_destino))
 
 #Contagem de profissionais chamados por região do Brasil
 tabela_regiao_destino <- base_tratada %>% 

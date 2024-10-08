@@ -1,0 +1,8 @@
+"0",""
+"0","cns_inscricao <- read_excel(""01_dados/edital_maismedicos_cns.xlsx"") |> "
+"0","  select(cod_ibge, nome, resultado, uf) |> "
+"0","  rename(cns = resultado) |> "
+"0","  rename(municipio_destino = cod_ibge) |> "
+"0","  rename(uf_destino = uf) |> "
+"0","  mutate(cns = as.numeric(cns))"
+"0",""

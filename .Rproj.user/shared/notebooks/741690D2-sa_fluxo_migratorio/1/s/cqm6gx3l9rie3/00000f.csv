@@ -1,0 +1,4 @@
+"0","# Gráfico de índices"
+"0","seqIplot(seq, "
+"0","         main = ""Gráficos de índices"", "
+"0","         with.legend = ""right"")"
