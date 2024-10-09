@@ -1,0 +1,6 @@
+"0","# Gráfico de estado"
+"0","seqdplot(seq, "
+"0","         xtlab=1:5, "
+"0","         cex.legend=0.9, "
+"0","         main = ""Gráfico de estados"","
+"0","         with.legend = ""right"")"

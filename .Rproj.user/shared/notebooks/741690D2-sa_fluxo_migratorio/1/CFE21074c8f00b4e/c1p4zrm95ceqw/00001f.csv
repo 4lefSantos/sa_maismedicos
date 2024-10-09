@@ -1,0 +1,4 @@
+"0",""
+"0","maismedicos_completo <- read_csv(""01_dados/maismedicos_completo.csv"")"
+"2","Erro: '01_dados/maismedicos_completo.csv' does not exist in current working directory ('C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/02_script').
+"
