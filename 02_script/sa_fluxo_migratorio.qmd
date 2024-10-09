@@ -19,6 +19,8 @@ library(readxl)
 library(geosphere)
 library(TraMineR)
 library(TraMineRextras)
+library(factoextra)
+
 ```
 
 ### 1. Tratamento de dados.
@@ -27,7 +29,7 @@ Primeiramente, carregaremos os profissionais convocados pela portaria.
 
 ```{r}
 
-cns_inscricao <- read_excel("01_dados/edital_maismedicos_cns.xlsx") |> 
+cns_inscricao <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/edital_maismedicos_cns.xlsx") |> 
   select(cod_ibge, nome, resultado, uf) |> 
   rename(cns = resultado) |> 
   rename(municipio_destino = cod_ibge) |> 
@@ -46,7 +48,7 @@ Filtraremos a competência posterior ao ano de 2019, que se refere a competênci
 
 ```{r}
 
-maismedicos_completo <- read_csv("01_dados/maismedicos_completo.csv")
+maismedicos_completo <- read_csv("C:/Users/alefs//OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/maismedicos_completo.csv")
 
 base_tratada <- 
   maismedicos_completo |> 
@@ -96,33 +98,79 @@ base_tratada <- base_tratada %>%
 
 ```
 
-A seguir, selecionaremos apenas as variáveis de interesse (CNS_PROF, COMPETEN, regiao_brasil_exercicio). Filtraremos as duplicatas de profissionais que possuem mais de um vínculo dentro da mesma região.
+A seguir, selecionaremos apenas as variáveis de interesse (CNS_PROF, COMPETEN, regiao_brasil_exercicio). Filtraremos as duplicatas de profissionais que possuem mais de um vínculo dentro do mesmo município.
 
-Identificamos 153 profissionais que exerceram mais de um vínculo em regiões distintas, por simplicidade, será retirada da análise.
+Identificamos 489 profissionais que exerceram mais de um vínculo em municípios distintos.
 
-E por fim, renomearemos os NA como SR (Sem registro).
+Adicionamos a informação do contigente populacional do muncípio em que o profissional atua. E classificamos por porte: Pequeno Porte I, Pequeno Porte II, Médio Porte, Grande Porte e Metrópole.
+
+Removemos as duplicatas de profissionais que atuam em diferentes municípios, mas de mesmo porte. E consideramos o municipio de maior porte, para aqueles que possuem multivínculo em municipios de diferentes porte.
+
+E por fim, transformamos a estrutura de dados de longo para largo para permiter a análise de sequência. E renomeamos os NA como SR (Sem Registro).
 
 ```{r}
+#Selecionando variáveis de interesse.
 base_final <- base_tratada |> 
-  select(CNS_PROF, COMPETEN, regiao_brasil_exercicio) |> 
+  select(CNS_PROF, COMPETEN, CODUFMUN) |> 
   arrange(COMPETEN)
 
+#removendo vinculos duplicados dentro de um mesmo municipio
 base_final <- base_final[!duplicated(base_final),]
 
-contagem_multregioes <- base_final |> 
+#Contagem de profissionais com multivínculos
+contagem_multmunicipios <- base_final |> 
   group_by(CNS_PROF, COMPETEN) |> 
-  summarise(n = n()) |> 
+  summarise(n = n(), .groups = "drop") |>  # Usa .groups = "drop" para desagrupar automaticamente
   filter(n > 1) |> 
   group_by(CNS_PROF) |> 
   count() |> 
   distinct()
 
-base_final <- base_final |> 
-  filter(!CNS_PROF %in% contagem_multregioes$CNS_PROF)
+#Carregando a base de contigente populacional
+pop_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+  mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
+  mutate(populacao = as.numeric(populacao))
+
+
+base_final$CODUFMUN <- as.character(base_final$CODUFMUN)
 
 base_final <- base_final |> 
-  pivot_wider(names_from = COMPETEN, values_from = regiao_brasil_exercicio)
+  left_join(pop_mun, by = c("CODUFMUN" = "cod_mun")) |> 
+  select(-mun)
 
+#Classificando o porte dos municípios
+base_final <- base_final |> 
+  mutate(porte = case_when((populacao < 20000) ~ "PP-I",
+                           (populacao >= 20000 & populacao < 50000) ~ "PP-II",
+                           (populacao >= 50000 & populacao < 100000) ~ "MP",
+                           (populacao >= 100000 & populacao < 900000) ~ "GP",
+                           (populacao >= 900000) ~ "Metrópole",
+                           TRUE ~ "Outros casos"))
+
+
+#Removendo duplicados com municipios do mesmo porte
+base_final <- base_final |> 
+  distinct(CNS_PROF, COMPETEN, porte, .keep_all = TRUE)
+
+#Matendo o município de maior porte nos multivínculos
+base_final <- base_final |>
+  group_by(CNS_PROF, COMPETEN) |>
+  mutate(duplicados = n() > 1) |>  # Verifica se há mais de uma observação para a mesma COMPETEN
+  filter(!duplicados | populacao == max(populacao)) |>  # Mantém a observação com maior populacao
+  ungroup() |>  # Desfaz o agrupamento
+  select(-duplicados)  # Remove a coluna auxiliar 'duplicados'
+
+
+
+#Selecionando variaveis de interesse
+base_final <- base_final |>
+  select(CNS_PROF, COMPETEN, porte)
+
+#Transformando em dados largo
+base_final <- base_final |> 
+  pivot_wider(names_from = COMPETEN, values_from = porte)
+
+#Renomeando os NA como SR
 base_final <- base_final |> 
   mutate(across(2:64, ~ ifelse(is.na(.), "SR", .)))
 
@@ -162,7 +210,75 @@ seqfplot(seq,
          with.legend = "right")
 ```
 
+### 3. Mensuração das dissimilaridades de par a par de indivíduos
+
+```{r}
+#|warning: false
+
+# Definindo a matriz de dissimilaridades
+
+couts <- seqsubm(seq, 
+                 method="CONSTANT", 
+                 cval=2)
+
+dissim <- seqdist(seq, 
+                  method="OM", 
+                  sm=couts, 
+                  indel=1.5)
+
+
+```
+
+### 4. Aplicação de técnica de redução de dimensionalidade para agrupar sequências similares
+
 ```{r}
 
+# aplicando PCA
+mds <- cmdscale(dissim, k=2)  # Redução para 2 dimensões
 
+mds_df_kmeans <- as.data.frame(mds)
+
+colnames(mds_df_kmeans) <- c("Dim1", 
+                             "Dim2")
+```
+
+```{r}
+fviz_nbclust(mds_df_kmeans, 
+             kmeans, 
+             method = "wss")
+```
+
+```{r}
+set.seed(123) 
+mds_df_kmeans$sequencia_id <- 1:nrow(mds_df_kmeans)
+
+
+kmeans_result <- kmeans(mds_df_kmeans[, c("Dim1", "Dim2")], 
+                        centers=5) 
+
+# 5. Adicione os resultados do cluster ao data frame
+mds_df_kmeans$cluster <- as.factor(kmeans_result$cluster)
+
+
+ggplot(mds_df_kmeans, aes(x=Dim1, 
+                          y=Dim2, 
+                          color=cluster)) +
+  geom_point(size=3) +
+  geom_label(aes(label=sequencia_id), 
+             vjust=-1, 
+             hjust=0.5, 
+             size=3) +  
+  labs(title="Gráfico de Dispersão com 3 Clusters", 
+       x="Dimensão 1", 
+       y="Dimensão 2") +
+  theme_minimal()
+```
+
+```{r}
+seqIplot(seq, 
+        group = kmeans_result$cluster,
+        border = NA, 
+        cex.axis = 1.5, 
+        cex.lab = 1.5,
+        sortv = dissim)
 ```

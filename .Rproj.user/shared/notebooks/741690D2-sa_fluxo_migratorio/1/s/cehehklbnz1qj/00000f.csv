@@ -1,0 +1,10 @@
+"0",""
+"0","# Calcule as taxas de transição"
+"0","trans_rates <- seqtrate(seq)"
+"2"," [>] computing transition probabilities for states GP/Metrópole/MP/PP-I/PP-II/SR ...
+"
+"0","# Plote o gráfico de transição"
+"0","seqplot(seq, type = ""transition"", main = ""Gráfico de transição"")"
+"2","Error in seqplot(seq, type = ""transition"", main = ""Gráfico de transição"") : 
+  Unknown 'type' argument.
+"

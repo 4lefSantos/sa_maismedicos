@@ -1,0 +1,6 @@
+"0","seqIplot(seq, "
+"0","        group = kmeans_result$cluster,"
+"0","        border = NA, "
+"0","        cex.axis = 1.5, "
+"0","        cex.lab = 1.5,"
+"0","        sortv = dissim)"

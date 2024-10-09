@@ -1,0 +1,8 @@
+"0",""
+"0","# aplicando PCA"
+"0","mds <- cmdscale(dissim, k=2)  # Redução para 2 dimensões"
+"0",""
+"0","mds_df_kmeans <- as.data.frame(mds)"
+"0",""
+"0","colnames(mds_df_kmeans) <- c(""Dim1"", "
+"0","                             ""Dim2"")"
