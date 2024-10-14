@@ -1,0 +1,26 @@
+"0",""
+"0","#|warning: false"
+"0",""
+"0","# Definindo a matriz de dissimilaridades"
+"0",""
+"0","couts_female <- seqsubm(seq_female, "
+"0","                 method=""CONSTANT"", "
+"0","                 cval=2)"
+"2"," [>] creating 6x6 substitution-cost matrix using 2 as constant value
+"
+"0","dissim_female <- seqdist(seq_female, "
+"0","                  method=""OM"", "
+"0","                  sm=couts_female, "
+"0","                  indel=1.5)"
+"2"," [>] 341 sequences with 6 distinct states
+"
+"2"," [>] checking 'sm' (size and triangle inequality)
+"
+"2"," [>] 198 distinct  sequences 
+"
+"2"," [>] min/max sequence lengths: 63/63
+"
+"2"," [>] computing distances using the OM metric
+"
+"2"," [>] elapsed time: 0.27 secs
+"

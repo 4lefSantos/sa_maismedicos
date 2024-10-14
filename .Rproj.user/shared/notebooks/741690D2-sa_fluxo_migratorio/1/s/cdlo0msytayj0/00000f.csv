@@ -1,5 +1,11 @@
-"0","library(factoextra)
-"
-"2","Warning: package ‘factoextra’ was built under R version 4.3.3"
-"2","Welcome! Want to learn more? See two factoextra-related books at https://goo.gl/ve3WBa
-"
+"0",""
+"0","library(tidyverse)"
+"0","library(readxl)"
+"0","library(geosphere)"
+"0","library(TraMineR)"
+"0","library(TraMineRextras)"
+"0","library(factoextra)"
+"0","library(genderBR)"
+"0","# install.packages(""genderBR"")"
+"0",""
+"0",""

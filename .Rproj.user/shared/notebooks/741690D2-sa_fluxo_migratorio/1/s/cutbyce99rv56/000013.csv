@@ -1,6 +1,0 @@
-"0","# As dez mais frequentes"
-"0",""
-"0","seqfplot(seq, "
-"0","         main=""Dez mais frequentes"", "
-"0","         with.legend = ""right"")"
-"2","Warning: '-' character in state codes may cause invalid results"

@@ -28,11 +28,11 @@ library(genderBR)
 
 ### 1. Tratamento de dados.
 
-Primeiramente, carregaremos os profissionais convocados pela portaria.
+Primeiramente, carregaremos os profissionais convocados pela portaria. Utilizaremos a função `get_gender` para identificação do gênero.
 
 ```{r}
 
-cns_inscricao <- read_excel("C:/Users/HP I3/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/edital_maismedicos_cns.xlsx") |> 
+cns_inscricao <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/edital_maismedicos_cns.xlsx") |> 
   select(cod_ibge, nome, resultado, uf) |> 
   rename(cns = resultado) |> 
   rename(municipio_destino = cod_ibge) |> 
@@ -47,13 +47,13 @@ Identificado a lista de nome dos profissionais convocados, foi realizado um web 
 
 Através dos CNS's, foram coletados através de consulta SQL no datalake, o histórico profissional, também da fonte de dados CNES, que será carregado abaixo.
 
-Integraremos a informação do municipio e unidade federativa para quais os profissionais foram chamados na mesma dataframe.
+Integraremos a informação do municipio e unidade federativa para quais os profissionais foram chamados no mesmo dataframe.
 
 Filtraremos a competência posterior ao ano de 2019, que se refere a competência de início de exercício no programa Mais Médicos.
 
 ```{r}
 
-maismedicos_completo <- read_csv("C:/Users/HP I3/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/maismedicos_completo.csv")
+maismedicos_completo <- read_csv("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/maismedicos_completo.csv")
 
 base_tratada <- 
   maismedicos_completo |> 
@@ -65,9 +65,11 @@ base_tratada <- base_tratada |>
 base_tratada$CNS_PROF <- as.character(base_tratada$CNS_PROF)
 ```
 
-No entanto, os profissionais iniciaram o exercicio nos municipios em que foram convocados em competências distintas. Para identificar essas competências, realizamos uma contagem por competência.
+No entanto, os profissionais começaram a atuar nos municípios onde foram convocados em diferentes períodos. Para identificar esses períodos, realizamos uma contagem por competência.
 
-Por decisão dos analistas, delimitamos os profissionais que iniciaram até a competência 06-2019, aqueles que iniciaram posteriormente, por simplicidade, não foram agregados na análise. Filtraremos apenas as competências posterior a 06-2019.
+Por decisão dos analistas, delimitamos os profissionais que iniciaram até a competência 06-2019 (893 médicos), aqueles que iniciaram posteriormente, por simplicidade, não foram agregados na análise. Filtraremos apenas as competências posterior a 06-2019.
+
+Foi aplicado filtro para retirar os profissionais nos quais a função não conseguiu identificar o gênero (62 médicos). Permanecendo 831 médicos para análise.
 
 ```{r}
 
@@ -104,15 +106,15 @@ base_tratada <- base_tratada %>%
 
 ```
 
-A seguir, selecionaremos apenas as variáveis de interesse (CNS_PROF, COMPETEN, regiao_brasil_exercicio). Filtraremos as duplicatas de profissionais que possuem mais de um vínculo dentro do mesmo município.
+A seguir, selecionaremos apenas as variáveis de interesse (CNS_PROF, COMPETEN, CODUFMUN, sexo). Filtraremos as duplicatas de profissionais que possuem mais de um vínculo dentro do mesmo município.
 
-Identificamos 489 profissionais que exerceram mais de um vínculo em municípios distintos.
+Foram filtrados os multivínculos dentro de um mesmo munícipio com a remoção de duplicatas.
+
+Identificamos 455 profissionais que exerceram mais de um vínculo em municípios distintos.
 
 Adicionamos a informação do contigente populacional do muncípio em que o profissional atua. E classificamos por porte: Pequeno Porte I, Pequeno Porte II, Médio Porte, Grande Porte e Metrópole.
 
 Removemos as duplicatas de profissionais que atuam em diferentes municípios, mas de mesmo porte. E consideramos o municipio de maior porte, para aqueles que possuem multivínculo em municipios de diferentes porte.
-
-E por fim, transformamos a estrutura de dados de longo para largo para permiter a análise de sequência. E renomeamos os NA como SR (Sem Registro).
 
 ```{r}
 #Selecionando variáveis de interesse.
@@ -133,7 +135,7 @@ contagem_multmunicipios <- base_final |>
   distinct()
 
 #Carregando a base de contigente populacional
-pop_mun <- read_excel("C:/Users/HP I3/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+pop_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
   mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
   mutate(populacao = as.numeric(populacao))
 
@@ -168,6 +170,20 @@ base_final <- base_final |>
 
 
 
+
+```
+
+### 2. Codificação das narrativas ou processos em sequências
+
+Nesta etapa, os processos são codificados em sequências. Precisamos deixar os dados em um formato para rodar a análise de sequências.
+
+#### 2.1. Homens.
+
+A seguir, filtraremos um dataframe apenas com homens (490 médicos),. transformaremos em dados largo e renomearemos os valores ausentes como SR (Sem Registro).
+
+Também será criado uma tabela comparativa das competências 201906 e 202406 da quantidade de profissionais por porte de cidade.
+
+```{r}
 #Selecionando variaveis de interesse
 base_final <- base_final |>
   select(CNS_PROF, COMPETEN, porte, sexo)
@@ -182,35 +198,17 @@ base_final_male <- base_final |>
 base_final_male <- base_final_male |> 
   mutate(across(2:64, ~ ifelse(is.na(.), "SR", .)))
 
-#Transformando em dados largo
-base_final_female <- base_final |> 
-  filter(sexo == "Female") %>% 
-  select(-sexo) %>% 
-  pivot_wider(names_from = COMPETEN, values_from = porte)
-
-#Renomeando os NA como SR
-base_final_female <- base_final_female |> 
-  mutate(across(2:64, ~ ifelse(is.na(.), "SR", .)))
-
+#Criando tabela
 tabela_porte_male <- base_final %>% 
   filter(sexo == "Male", COMPETEN %in% c(201906, 202406)) %>% 
   group_by(porte, COMPETEN) %>% 
   count() %>% 
   pivot_wider(names_from = COMPETEN, values_from = n) %>% 
-  mutate(percentual_male = `202406`/`201906`)
+  mutate(tx_retencao_male = `202406`/`201906`)
 
-tabela_porte_female <- base_final %>% 
-  filter(sexo == "Female", COMPETEN %in% c(201906, 202406)) %>% 
-  group_by(porte, COMPETEN) %>% 
-  count() %>% 
-  pivot_wider(names_from = COMPETEN, values_from = n) %>% 
-  mutate(percentual_female = `202406`/`201906`)
-
-teste <- tabela_porte_male %>% 
-  left_join(tabela_porte_female, by = c("porte"))
 ```
 
-### 2. Codificação das narrativas ou processos em sequências
+Abaixo será criando o objeto de sequência (codificação das narrativas) através da função `seqdef` que gerou 285 sequências únicas. E em seguida serão gerados os gráficos da análise de sequências.
 
 ```{r}
 
@@ -236,14 +234,40 @@ seqIplot(seq_male,
 ```
 
 ```{r}
-# As dez mais frequentes
 
-seqfplot(seq_male, 
-         main="Dez mais frequentes", 
-         with.legend = "right")
+seqtab(seq_male, 
+       idxs = 1:40) 
+
 ```
 
-Mulher
+#### 2.1. Mulheres.
+
+A seguir, filtraremos um dataframe apenas com mulheres (341 médicoa), transformaremos em dados largo e renomearemos os valores ausentes como SR (Sem Registro).
+
+Também será criado uma tabela comparativa das competências 201906 e 202406 da quantidade de profissionais por porte de cidade.
+
+```{r}
+
+#Transformando em dados largo
+base_final_female <- base_final |> 
+  filter(sexo == "Female") %>% 
+  select(-sexo) %>% 
+  pivot_wider(names_from = COMPETEN, values_from = porte)
+
+#Renomeando os NA como SR
+base_final_female <- base_final_female |> 
+  mutate(across(2:64, ~ ifelse(is.na(.), "SR", .)))
+
+#Criando tabela
+tabela_porte_female <- base_final %>% 
+  filter(sexo == "Female", COMPETEN %in% c(201906, 202406)) %>% 
+  group_by(porte, COMPETEN) %>% 
+  count() %>% 
+  pivot_wider(names_from = COMPETEN, values_from = n) %>% 
+  mutate(percentual_female = `202406`/`201906`)
+```
+
+Abaixo será criando o objeto de sequência (codificação das narrativas) através da função `seqdef` que gerou 285 sequências únicas. E em seguida serão gerados os gráficos da análise de sequências.
 
 ```{r}
 seq_female <- seqdef(base_final_female, var = 2:64)
@@ -260,57 +284,102 @@ seqdplot(seq_female,
          with.legend = "right")
 ```
 
+```{r}
+
+# Gráfico de índices
+seqIplot(seq_female, 
+         main = "Gráficos de índices", 
+         with.legend = "right")
+```
+
+```{r}
+seqtab(seq_female, 
+       idxs = 1:40) 
+```
+
 ### 3. Mensuração das dissimilaridades de par a par de indivíduos
+
+Para gerar agrupamentos, primeiramente definiremos a matriz de dissimilaridades através da função seqdist, usando método Optimal Matching (OM). A matriz de dissimilaridades mostra, par a par, o quanto que uma observação está distante da outra.
+
+#### 3.1. Homens
 
 ```{r}
 #|warning: false
 
 # Definindo a matriz de dissimilaridades
 
-couts <- seqsubm(seq_male, 
+couts_male <- seqsubm(seq_male, 
                  method="CONSTANT", 
                  cval=2)
 
-dissim <- seqdist(seq_male, 
+dissim_male <- seqdist(seq_male, 
                   method="OM", 
-                  sm=couts, 
+                  sm=couts_male, 
                   indel=1.5)
 
 
 ```
 
+#### 3.1. Mulheres
+
+```{r}
+
+#|warning: false
+
+# Definindo a matriz de dissimilaridades
+
+couts_female <- seqsubm(seq_female, 
+                 method="CONSTANT", 
+                 cval=2)
+
+dissim_female <- seqdist(seq_female, 
+                  method="OM", 
+                  sm=couts_female, 
+                  indel=1.5)
+```
+
 ### 4. Aplicação de técnica de redução de dimensionalidade para agrupar sequências similares
+
+O próximo passo consiste na aplicação da técnica de clusterização. Existem diversas técnicas e procedimentos que podem ser usados. Para nosso caso, aplicamos uma clusterização pelo método de k-means.
+
+Antes de iniciar a clusterização, aplicamos a técnica de principal components analysis para reduzir o número de atributos em apenas duas dimensões. Isso é útil para visualizar os clusters, depois de formados, em duas dimensões.
+
+É possível fazer a clusterização sem a PCA? Sim, aplicamos e o resultado não foi muito diferente. Então vamos manter a PCA, especialmente por facilitar a visualização em duas dimensões e por aprimorar o desempenho do processamento da clusterização.
+
+#### 4.1. Homens
 
 ```{r}
 
 # aplicando PCA
-mds <- cmdscale(dissim, k=2)  # Redução para 2 dimensões
+mds_male <- cmdscale(dissim_male, k=2)  # Redução para 2 dimensões
 
-mds_df_kmeans <- as.data.frame(mds)
+mds_df_kmeans_male <- as.data.frame(mds_male)
 
-colnames(mds_df_kmeans) <- c("Dim1", 
+colnames(mds_df_kmeans_male) <- c("Dim1", 
                              "Dim2")
 ```
 
 ```{r}
-fviz_nbclust(mds_df_kmeans, 
+fviz_nbclust(mds_df_kmeans_male, 
              kmeans, 
              method = "wss")
 ```
 
+##### 4.1.1. Testando com 5 clusters.
+
 ```{r}
 set.seed(123) 
-mds_df_kmeans$sequencia_id <- 1:nrow(mds_df_kmeans)
+mds_df_kmeans_male$sequencia_id <- 1:nrow(mds_df_kmeans_male)
 
 
-kmeans_result <- kmeans(mds_df_kmeans[, c("Dim1", "Dim2")], 
+kmeans_result_male <- kmeans(mds_df_kmeans_male[, c("Dim1", "Dim2")], 
                         centers=5) 
 
 # 5. Adicione os resultados do cluster ao data frame
-mds_df_kmeans$cluster <- as.factor(kmeans_result$cluster)
+mds_df_kmeans_male$cluster <- as.factor(kmeans_result_male$cluster)
 
 
-ggplot(mds_df_kmeans, aes(x=Dim1, 
+ggplot(mds_df_kmeans_male, aes(x=Dim1, 
                           y=Dim2, 
                           color=cluster)) +
   geom_point(size=3) +
@@ -324,60 +393,62 @@ ggplot(mds_df_kmeans, aes(x=Dim1,
   theme_minimal()
 ```
 
+Os gráficos de índices dos cluster, indicam três grupos de pessoas que tendem a permanecer em cidades do mesmo porte em que foram alocados: Pequeno Porte II, Médio Porte e
+
 ```{r}
 seqIplot(seq_male, 
-        group = kmeans_result$cluster,
+        group = kmeans_result_male$cluster,
         border = NA, 
         cex.axis = 1.5, 
         cex.lab = 1.5,
-        sortv = dissim)
+        sortv = dissim_male)
 ```
 
-Mulher
+#### 4.2. Mulheres
 
 ```{r}
 
 # Definindo a matriz de dissimilaridades
 
-couts <- seqsubm(seq_female, 
+couts_female <- seqsubm(seq_female, 
                  method="CONSTANT", 
                  cval=2)
 
-dissim <- seqdist(seq_female, 
+dissim_female <- seqdist(seq_female, 
                   method="OM", 
-                  sm=couts, 
+                  sm=couts_female, 
                   indel=1.5)
 ```
 
 ```{r}
 # aplicando PCA
-mds <- cmdscale(dissim, k=2)  # Redução para 2 dimensões
+mds_female <- cmdscale(dissim_female, k=2)  # Redução para 2 dimensões
 
-mds_df_kmeans <- as.data.frame(mds)
+mds_df_kmeans_female <- as.data.frame(mds_female)
 
-colnames(mds_df_kmeans) <- c("Dim1", 
+colnames(mds_df_kmeans_female) <- c("Dim1", 
                              "Dim2")
 ```
 
 ```{r}
-fviz_nbclust(mds_df_kmeans, 
+fviz_nbclust(mds_df_kmeans_female, 
              kmeans, 
              method = "wss")
 ```
 
 ```{r}
 set.seed(123) 
-mds_df_kmeans$sequencia_id <- 1:nrow(mds_df_kmeans)
+mds_df_kmeans_female$sequencia_id <- 1:nrow(mds_df_kmeans_female)
 
 
-kmeans_result <- kmeans(mds_df_kmeans[, c("Dim1", "Dim2")], 
+kmeans_result_female <- kmeans(mds_df_kmeans_female[, c("Dim1", "Dim2")], 
                         centers=5) 
 
 # 5. Adicione os resultados do cluster ao data frame
-mds_df_kmeans$cluster <- as.factor(kmeans_result$cluster)
+mds_df_kmeans_female$cluster <- as.factor(kmeans_result_female$cluster)
 
 
-ggplot(mds_df_kmeans, aes(x=Dim1, 
+ggplot(mds_df_kmeans_female, aes(x=Dim1, 
                           y=Dim2, 
                           color=cluster)) +
   geom_point(size=3) +
@@ -393,7 +464,7 @@ ggplot(mds_df_kmeans, aes(x=Dim1,
 
 ```{r}
 seqIplot(seq_female, 
-        group = kmeans_result$cluster,
+        group = kmeans_result_female$cluster,
         border = NA, 
         cex.axis = 1.5, 
         cex.lab = 1.5,

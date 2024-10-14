@@ -1,0 +1,6 @@
+"0","seqIplot(seq_female, "
+"0","        group = kmeans_result_female$cluster,"
+"0","        border = NA, "
+"0","        cex.axis = 1.5, "
+"0","        cex.lab = 1.5,"
+"0","        sortv = dissim)"
