@@ -1,0 +1,401 @@
+---
+title: "sa_fluxo_migratorio"
+format: html
+editor: visual
+---
+
+## Sequence Analysis: Mais Médicos
+
+O objetivo do presente trabalho é aplicar uma Análise de Sequência para compreender a trajetório profissional de médicos convocados no programa Mais Médicos através da PORTARIA Nº 30, DE 18 DE FEVEREIRO DE 2019 que prevê:
+
+"Divulga a relação dos médicos brasileiros formados em instituições de educação superior estrangeiras com habilitação para o exercício da medicina no exterior, que obtiveram êxito na escolha de vagas com respectivas alocações, no âmbito do Projeto Mais Médicos para o Brasil, na chamada pública do Edital SGTES/MS nº 22, de 7 de dezembro de 2018, nos termos do subitem 4.5.11 e 9.1."
+
+Na primeira seção será realizada o tratamento da base de dados.
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(geosphere)
+library(TraMineR)
+library(TraMineRextras)
+library(factoextra)
+library(genderBR)
+# install.packages("genderBR")
+
+
+```
+
+### 1. Tratamento de dados.
+
+Primeiramente, carregaremos os profissionais convocados pela portaria.
+
+```{r}
+
+cns_inscricao <- read_excel("C:/Users/HP I3/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/edital_maismedicos_cns.xlsx") |> 
+  select(cod_ibge, nome, resultado, uf) |> 
+  rename(cns = resultado) |> 
+  rename(municipio_destino = cod_ibge) |> 
+  rename(uf_destino = uf) |> 
+  mutate(cns = as.numeric(cns)) %>% 
+  mutate(sexo = get_gender(cns_inscricao$nome))
+
+
+```
+
+Identificado a lista de nome dos profissionais convocados, foi realizado um web scraping (disponível em outro script) no site do Cadastro Nacional de Estabelecimentos de Saúde (CNES) para identificar os respectivos CNS, identificando 1218 médicos.
+
+Através dos CNS's, foram coletados através de consulta SQL no datalake, o histórico profissional, também da fonte de dados CNES, que será carregado abaixo.
+
+Integraremos a informação do municipio e unidade federativa para quais os profissionais foram chamados na mesma dataframe.
+
+Filtraremos a competência posterior ao ano de 2019, que se refere a competência de início de exercício no programa Mais Médicos.
+
+```{r}
+
+maismedicos_completo <- read_csv("C:/Users/HP I3/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/maismedicos_completo.csv")
+
+base_tratada <- 
+  maismedicos_completo |> 
+  left_join(cns_inscricao, by = c("CNS_PROF" = "cns"))
+
+base_tratada <- base_tratada |> 
+  filter(COMPETEN >= 201901)
+
+base_tratada$CNS_PROF <- as.character(base_tratada$CNS_PROF)
+```
+
+No entanto, os profissionais iniciaram o exercicio nos municipios em que foram convocados em competências distintas. Para identificar essas competências, realizamos uma contagem por competência.
+
+Por decisão dos analistas, delimitamos os profissionais que iniciaram até a competência 06-2019, aqueles que iniciaram posteriormente, por simplicidade, não foram agregados na análise. Filtraremos apenas as competências posterior a 06-2019.
+
+```{r}
+
+compet_inicio <- base_tratada |> 
+  filter(CODUFMUN == municipio_destino) |> 
+  group_by(COMPETEN, CNS_PROF) |> 
+  ungroup(CNS_PROF) |> 
+  distinct(CNS_PROF) |> 
+  summarise(competencia_inicio = n())
+
+cns_validos <- base_tratada |> 
+  filter(CODUFMUN == municipio_destino, COMPETEN == 201906) |> 
+    filter(!is.na(sexo)) %>% 
+  select(CNS_PROF) |> 
+  distinct()
+
+base_tratada <- base_tratada |> 
+  filter(CNS_PROF %in% cns_validos$CNS_PROF, COMPETEN >= 201906)
+
+```
+
+Agora, criaremos uma variável identificando a região do Brasil em que o profissional está em exercício.
+
+```{r}
+
+base_tratada <- base_tratada %>% 
+  mutate(regiao_brasil_exercicio = case_when(
+    (uf_sigla %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_sigla %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_sigla %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_sigla %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_sigla %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro"))
+
+```
+
+A seguir, selecionaremos apenas as variáveis de interesse (CNS_PROF, COMPETEN, regiao_brasil_exercicio). Filtraremos as duplicatas de profissionais que possuem mais de um vínculo dentro do mesmo município.
+
+Identificamos 489 profissionais que exerceram mais de um vínculo em municípios distintos.
+
+Adicionamos a informação do contigente populacional do muncípio em que o profissional atua. E classificamos por porte: Pequeno Porte I, Pequeno Porte II, Médio Porte, Grande Porte e Metrópole.
+
+Removemos as duplicatas de profissionais que atuam em diferentes municípios, mas de mesmo porte. E consideramos o municipio de maior porte, para aqueles que possuem multivínculo em municipios de diferentes porte.
+
+E por fim, transformamos a estrutura de dados de longo para largo para permiter a análise de sequência. E renomeamos os NA como SR (Sem Registro).
+
+```{r}
+#Selecionando variáveis de interesse.
+base_final <- base_tratada |> 
+  select(CNS_PROF, COMPETEN, CODUFMUN, sexo) |> 
+  arrange(COMPETEN)
+
+#removendo vinculos duplicados dentro de um mesmo municipio
+base_final <- base_final[!duplicated(base_final),]
+
+#Contagem de profissionais com multivínculos
+contagem_multmunicipios <- base_final |> 
+  group_by(CNS_PROF, COMPETEN) |> 
+  summarise(n = n(), .groups = "drop") |>  # Usa .groups = "drop" para desagrupar automaticamente
+  filter(n > 1) |> 
+  group_by(CNS_PROF) |> 
+  count() |> 
+  distinct()
+
+#Carregando a base de contigente populacional
+pop_mun <- read_excel("C:/Users/HP I3/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+  mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
+  mutate(populacao = as.numeric(populacao))
+
+
+base_final$CODUFMUN <- as.character(base_final$CODUFMUN)
+
+base_final <- base_final |> 
+  left_join(pop_mun, by = c("CODUFMUN" = "cod_mun")) |> 
+  select(-mun)
+
+#Classificando o porte dos municípios
+base_final <- base_final |> 
+  mutate(porte = case_when((populacao < 20000) ~ "PP-I",
+                           (populacao >= 20000 & populacao < 50000) ~ "PP-II",
+                           (populacao >= 50000 & populacao < 100000) ~ "MP",
+                           (populacao >= 100000 & populacao < 900000) ~ "GP",
+                           (populacao >= 900000) ~ "Metrópole",
+                           TRUE ~ "Outros casos"))
+
+
+#Removendo duplicados com municipios do mesmo porte
+base_final <- base_final |> 
+  distinct(CNS_PROF, COMPETEN, porte, .keep_all = TRUE)
+
+#Matendo o município de maior porte nos multivínculos
+base_final <- base_final |>
+  group_by(CNS_PROF, COMPETEN) |>
+  mutate(duplicados = n() > 1) |>  # Verifica se há mais de uma observação para a mesma COMPETEN
+  filter(!duplicados | populacao == max(populacao)) |>  # Mantém a observação com maior populacao
+  ungroup() |>  # Desfaz o agrupamento
+  select(-duplicados)  # Remove a coluna auxiliar 'duplicados'
+
+
+
+#Selecionando variaveis de interesse
+base_final <- base_final |>
+  select(CNS_PROF, COMPETEN, porte, sexo)
+
+#Transformando em dados largo
+base_final_male <- base_final |> 
+  filter(sexo == "Male") %>% 
+  select(-sexo) %>% 
+  pivot_wider(names_from = COMPETEN, values_from = porte)
+
+#Renomeando os NA como SR
+base_final_male <- base_final_male |> 
+  mutate(across(2:64, ~ ifelse(is.na(.), "SR", .)))
+
+#Transformando em dados largo
+base_final_female <- base_final |> 
+  filter(sexo == "Female") %>% 
+  select(-sexo) %>% 
+  pivot_wider(names_from = COMPETEN, values_from = porte)
+
+#Renomeando os NA como SR
+base_final_female <- base_final_female |> 
+  mutate(across(2:64, ~ ifelse(is.na(.), "SR", .)))
+
+tabela_porte_male <- base_final %>% 
+  filter(sexo == "Male", COMPETEN %in% c(201906, 202406)) %>% 
+  group_by(porte, COMPETEN) %>% 
+  count() %>% 
+  pivot_wider(names_from = COMPETEN, values_from = n) %>% 
+  mutate(percentual_male = `202406`/`201906`)
+
+tabela_porte_female <- base_final %>% 
+  filter(sexo == "Female", COMPETEN %in% c(201906, 202406)) %>% 
+  group_by(porte, COMPETEN) %>% 
+  count() %>% 
+  pivot_wider(names_from = COMPETEN, values_from = n) %>% 
+  mutate(percentual_female = `202406`/`201906`)
+
+teste <- tabela_porte_male %>% 
+  left_join(tabela_porte_female, by = c("porte"))
+```
+
+### 2. Codificação das narrativas ou processos em sequências
+
+```{r}
+
+seq_male <- seqdef(base_final_male, var = 2:64)
+
+seqtab(seq_male, idx=0) |> 
+  nrow()
+```
+
+```{r}
+# Gráfico de estado
+seqdplot(seq_male, 
+         cex.legend=0.9, 
+         main = "Gráfico de estados",
+         with.legend = "right")
+```
+
+```{r}
+# Gráfico de índices
+seqIplot(seq_male, 
+         main = "Gráficos de índices", 
+         with.legend = "right")
+```
+
+```{r}
+# As dez mais frequentes
+
+seqfplot(seq_male, 
+         main="Dez mais frequentes", 
+         with.legend = "right")
+```
+
+Mulher
+
+```{r}
+seq_female <- seqdef(base_final_female, var = 2:64)
+
+seqtab(seq_male, idx=0) |> 
+  nrow()
+```
+
+```{r}
+# Gráfico de estado
+seqdplot(seq_female, 
+         cex.legend=0.9, 
+         main = "Gráfico de estados",
+         with.legend = "right")
+```
+
+### 3. Mensuração das dissimilaridades de par a par de indivíduos
+
+```{r}
+#|warning: false
+
+# Definindo a matriz de dissimilaridades
+
+couts <- seqsubm(seq_male, 
+                 method="CONSTANT", 
+                 cval=2)
+
+dissim <- seqdist(seq_male, 
+                  method="OM", 
+                  sm=couts, 
+                  indel=1.5)
+
+
+```
+
+### 4. Aplicação de técnica de redução de dimensionalidade para agrupar sequências similares
+
+```{r}
+
+# aplicando PCA
+mds <- cmdscale(dissim, k=2)  # Redução para 2 dimensões
+
+mds_df_kmeans <- as.data.frame(mds)
+
+colnames(mds_df_kmeans) <- c("Dim1", 
+                             "Dim2")
+```
+
+```{r}
+fviz_nbclust(mds_df_kmeans, 
+             kmeans, 
+             method = "wss")
+```
+
+```{r}
+set.seed(123) 
+mds_df_kmeans$sequencia_id <- 1:nrow(mds_df_kmeans)
+
+
+kmeans_result <- kmeans(mds_df_kmeans[, c("Dim1", "Dim2")], 
+                        centers=5) 
+
+# 5. Adicione os resultados do cluster ao data frame
+mds_df_kmeans$cluster <- as.factor(kmeans_result$cluster)
+
+
+ggplot(mds_df_kmeans, aes(x=Dim1, 
+                          y=Dim2, 
+                          color=cluster)) +
+  geom_point(size=3) +
+  geom_label(aes(label=sequencia_id), 
+             vjust=-1, 
+             hjust=0.5, 
+             size=3) +  
+  labs(title="Gráfico de Dispersão com 3 Clusters", 
+       x="Dimensão 1", 
+       y="Dimensão 2") +
+  theme_minimal()
+```
+
+```{r}
+seqIplot(seq_male, 
+        group = kmeans_result$cluster,
+        border = NA, 
+        cex.axis = 1.5, 
+        cex.lab = 1.5,
+        sortv = dissim)
+```
+
+Mulher
+
+```{r}
+
+# Definindo a matriz de dissimilaridades
+
+couts <- seqsubm(seq_female, 
+                 method="CONSTANT", 
+                 cval=2)
+
+dissim <- seqdist(seq_female, 
+                  method="OM", 
+                  sm=couts, 
+                  indel=1.5)
+```
+
+```{r}
+# aplicando PCA
+mds <- cmdscale(dissim, k=2)  # Redução para 2 dimensões
+
+mds_df_kmeans <- as.data.frame(mds)
+
+colnames(mds_df_kmeans) <- c("Dim1", 
+                             "Dim2")
+```
+
+```{r}
+fviz_nbclust(mds_df_kmeans, 
+             kmeans, 
+             method = "wss")
+```
+
+```{r}
+set.seed(123) 
+mds_df_kmeans$sequencia_id <- 1:nrow(mds_df_kmeans)
+
+
+kmeans_result <- kmeans(mds_df_kmeans[, c("Dim1", "Dim2")], 
+                        centers=5) 
+
+# 5. Adicione os resultados do cluster ao data frame
+mds_df_kmeans$cluster <- as.factor(kmeans_result$cluster)
+
+
+ggplot(mds_df_kmeans, aes(x=Dim1, 
+                          y=Dim2, 
+                          color=cluster)) +
+  geom_point(size=3) +
+  geom_label(aes(label=sequencia_id), 
+             vjust=-1, 
+             hjust=0.5, 
+             size=3) +  
+  labs(title="Gráfico de Dispersão com 3 Clusters", 
+       x="Dimensão 1", 
+       y="Dimensão 2") +
+  theme_minimal()
+```
+
+```{r}
+seqIplot(seq_female, 
+        group = kmeans_result$cluster,
+        border = NA, 
+        cex.axis = 1.5, 
+        cex.lab = 1.5,
+        sortv = dissim)
+```
