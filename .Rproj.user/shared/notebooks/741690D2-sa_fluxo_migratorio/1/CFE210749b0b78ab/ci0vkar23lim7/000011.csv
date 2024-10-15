@@ -1,0 +1,15 @@
+"0","tabela_porte_male_2016 <- base_final2016_male %>% 
+  filter(sexo == ""Male"", COMPETEN %in% c(201906, 202406))
+"
+"1","[1m[33mError[39m in `filter()`:[22m
+[38;5;232m[36mℹ[38;5;232m In argument: `sexo == ""Male""`.[39m
+[1mCaused by error:[22m
+[33m![39m objeto 'sexo' não encontrado
+Backtrace:
+[90m 1. [39mbase_final2016_male %>% ...
+[90m 3. [39m[1m[94mdplyr:::filter.data.frame([39m[22m., sexo == ""Male"", COMPETEN %in% c(201906, 202406)[1m[94m)[39m[22m
+[90m 4. [39mdplyr:::filter_rows(.data, dots, by)
+[90m 5. [39mdplyr:::filter_eval(...)
+[90m 7. [39mmask$eval_all_filter(dots, env_filter)
+[90m 8. [39m[1mdplyr[22m (local) eval()
+"
