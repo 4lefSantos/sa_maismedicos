@@ -1,0 +1,18 @@
+# Exemplo de vetor no formato atual
+string_vetor <- edital$resultado
+
+# Remover as aspas duplas do início e do fim
+string_vetor_sem_aspas_duplas <- gsub('^"|"$', '', string_vetor)
+
+# Dividir a string em um vetor de elementos separados por vírgula
+vetor <- unlist(strsplit(string_vetor_sem_aspas_duplas, ","))
+
+# Adicionar aspas simples em cada elemento
+vetor_com_aspas_simples <- paste0("'", vetor, "'")
+# Colapsar em uma única string separada por vírgulas
+resultado_final <- paste(vetor_com_aspas_simples, collapse = ",")
+# Exibir o resultado
+resultado_final
+
+edital <- edital |> 
+  filter(!is.na(resultado))
