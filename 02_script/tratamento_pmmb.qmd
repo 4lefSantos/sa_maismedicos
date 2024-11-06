@@ -1,0 +1,449 @@
+---
+title: "sa_fluxo_migratorio"
+format: html
+editor: visual
+---
+
+# Analysis: Programa Mais Médicos para o Brasil (pmmb)
+
+O objetivo do presente trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019).
+
+O programa prevê vigência de três anos e a seleção é estruturada em duas fases:
+
+1ª. Destinado a formados e revalidados em instituições em brasileiras.\
+2ª. Destinação das vagas remanescentes para habilitados médicos no exterior (médico intercambista).
+
+Abaixo os pacotes que serão necessários.
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(geosphere)
+library(TraMineR)
+library(TraMineRextras)
+library(factoextra)
+library(genderBR)
+library(lubridate)
+library(writexl)
+library(RODBC)
+
+
+#install.packages("lubridate")
+
+
+```
+
+## 1. Montagem da base de dados.
+
+### 1.1. Base de dados "primária".
+
+A primeira etapa consiste na elaboração da base de dados "primária" a partir de diversas fontes.
+
+A partir dos resultados do edital do 18º Ciclo do pmmb, identificamos os médicos e realizamos o processo de web scrapping para identificar o CNS desses profissionais no site CNES.
+
+Após a transformação em planilha dos resultados do edital e a identificação do CNS, abriremos esses dados que representa 2452 médicos. No entanto, alguns médicos não foi possível identificaro o número de CNS (265 médicos).
+
+Para identifica o sexo utilizamos a função `get_gender` a partir dos nomes. No entanto, não foi possível a identificação em 144 profissionais.
+
+Restando o número de 2043 médicos.
+
+```{r}
+cns_inscricao <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/Edital_11_2019_resultado_cns.xlsx") |> 
+  select(nome,uf_aloc, municipio_aloc, ibge_aloc,participou_pmmb, data_nascimento, data_formacao, fase ,resultado) |> 
+  rename(cns = resultado) |> 
+  rename(municipio_destino = municipio_aloc) |> 
+  rename(uf_destino = uf_aloc) |> 
+  mutate(cns = as.character(cns)) |>  
+  filter(!is.na(cns)) |> 
+  mutate(sexo = get_gender(cns_inscricao$nome)) |> 
+  filter(!is.na(sexo))
+```
+
+Com base nesse resultado final, extraímos todos os CNS em um vetor para executar uma consulta no datalake, a fim de identificar os respectivos CPFs.
+
+Essa consulta gerou uma base denominada CNES_cns.
+
+Filtraremos essa base a partir da competência 201901 e, em seguida, identificaremos os CPFs únicos para realizar uma nova consulta com esses CPFs, trazendo os dados completos.
+
+``` sql
+SELECT a.CNES, 
+       b.uf,
+       b.uf_sigla, 
+       a.CODUFMUN, 
+       b.municipio,
+       b.latitude,
+       b.longitude,
+       a.CPF_PROF, 
+       a.CBO, 
+       a.NOMEPROF, 
+       a.CNS_PROF,
+       a.VINCULAC, 
+       a.HORAOUTR, 
+       a.HORAHOSP, 
+       a.HORA_AMB, 
+       a.COMPETEN
+FROM Dados.cnes.PF a
+    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" b
+        ON a.CODUFMUN = CAST(b.cod_municipio AS CHARACTER)
+WHERE CNS_PROF IN (lista)
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."Consulta_maismedicos_2019_cns"'
+
+
+
+CNES_cns <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+#identificando os CPF
+lista_cpf <- CNES_cns |> 
+  filter(COMPETEN >= 201901) |> 
+  mutate(CNS_PROF = as.character(CNS_PROF)) |> 
+  select(CPF_PROF, CNS_PROF, NOMEPROF) |> 
+  distinct(CPF_PROF)
+```
+
+Observa-se que a lista de CPF's retornou apenas 2034 observações, esse número reduzido é devido a médico duplicados em razão de registros com letras do nome trocadas.
+
+Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
+
+``` sql
+SELECT a.CNES, 
+       b.uf,
+       b.uf_sigla, 
+       a.CODUFMUN, 
+       b.municipio,
+       b.latitude,
+       b.longitude,
+       a.CPF_PROF, 
+       a.CBO, 
+       a.NOMEPROF, 
+       a.CNS_PROF,
+       a.VINCULAC, 
+       a.HORAOUTR, 
+       a.HORAHOSP, 
+       a.HORA_AMB, 
+       a.COMPETEN
+FROM Dados.cnes.PF a
+    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" b
+        ON a.CODUFMUN = CAST(b.cod_municipio AS CHARACTER)
+WHERE CPF_PROF IN (lista)
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."Consulta_maismedicos_2019"'
+
+
+
+CNES_cpf <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+O próximo passo será unir as duas bases: a de inscrição e os resultados gerados pela consulta. No entanto, como a base de inscrição não possui a variável CPF, primeiro será necessário adicioná-la a essa base para, em seguida, realizar um *left_join* com a base CNES_cpf.
+
+```{r}
+
+lista_cns_cpf <- CNES_cns |> 
+  filter(COMPETEN >= 201901) |> 
+  mutate(CNS_PROF = as.character(CNS_PROF)) |> 
+  select(CPF_PROF, CNS_PROF) |> 
+  distinct(CPF_PROF, CNS_PROF)
+
+cns_inscricao <- cns_inscricao |> 
+  left_join(lista_cns_cpf, by = c("cns" = "CNS_PROF"))
+```
+
+Agora adicionada a coluna de CPF na base cns_inscricao, faremos um left join entre ela e a base CNES_cns.
+
+```{r}
+
+base_tratada <- 
+  CNES_cpf |> 
+  left_join(cns_inscricao, by = c("CPF_PROF" = "CPF_PROF"))
+
+
+```
+
+A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o *left join* utilizando essa variável.
+
+```{r}
+
+prorrogacao_ciclo18 <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx") |> 
+  select(-CPF, -Ciclo)
+
+base_tratada <- base_tratada |>   
+  left_join(prorrogacao_ciclo18, by = c("NOMEPROF" = "NOME")) |>   
+  mutate(Prorrogado = ifelse(is.na(Prorrogado), "NÃO", Prorrogado))
+
+```
+
+Finalizada a estruturação inicial da base de dados, identificaremos em qual competência os profissionais iniciaram o exercício na cidade em que foram designados.
+
+```{r}
+
+compet_inicio <- base_tratada |> 
+  filter(CODUFMUN == ibge_aloc) |> 
+  group_by(COMPETEN, CNS_PROF) |> 
+  ungroup(CNS_PROF) |> 
+  distinct(CNS_PROF) |> 
+  summarise(competencia_inicio = n())
+```
+
+Observa-se que a competência em que os médicos iniciam o exercício nas cidades é junho de 2019, e até novembro ainda há profissionais começando nas localidades.
+
+Com isso, admitiremos novembro de 2019 como a competência que finaliza o inicio do programa. E a partir dessa referência, calcularemos a idade dos médicos e o seu tempo de formação.
+
+```{r}
+base_tratada$COMPETEN <- as.Date(paste0(base_tratada$COMPETEN, "01"), format = "%Y%m%d")
+
+
+# Convertendo a data de referência (competência) para o formato Date
+competencia <- as.Date("2019-11-01")
+
+# Calculando a idade em anos
+base_tratada$idade <- trunc(as.numeric(interval(base_tratada$data_nascimento, competencia) / years(1)))
+
+
+
+base_tratada$data_formacao <- as.Date(paste("01", base_tratada$data_formacao, sep = "/"), format = "%d/%m/%Y")
+
+# Calculando o tempo de formação
+base_tratada$tempo_formacao <- trunc(as.numeric(interval(base_tratada$data_formacao, competencia) / years(1)))
+```
+
+A seguir identificaremos os indíviduos que já atuavam nas cidades em que foram designados antes de iniciar o programa.
+
+```{r}
+base_tratada <-base_tratada |> 
+  mutate(estava_na_cidade = ifelse(COMPETEN == as.Date("2019-04-01") & CODUFMUN == ibge_aloc, "Sim", "Não"))
+```
+
+### 1.2. Integração base de dados "secundários".
+
+A segunda etapa consiste na agregação de variáveis de outras fontes de dados. Para isso, identificaremos os municipios e CNES presentes na base de dados.
+
+```{r}
+lista_cnes <- base_tratada |> 
+  distinct(CNES)
+
+lista_municipios <- base_tratada |> 
+  distinct(CODUFMUN)
+```
+
+#### 1.2.1. População e porte.
+
+A partir de dados do Censo 2022 do IBGE identificaremos a população dos municipios, e classificaremos por porte de acordo com a população.
+
+```{r}
+#Carregando a base de contigente populacional
+pop_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+  mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
+  mutate(populacao = as.numeric(populacao))
+
+
+base_tratada$CODUFMUN <- as.character(base_tratada$CODUFMUN)
+
+base_tratada <- base_tratada |> 
+  left_join(pop_mun, by = c("CODUFMUN" = "cod_mun")) |> 
+  select(-mun)
+
+#Classificando o porte dos municípios
+base_tratada <- base_tratada |> 
+  mutate(porte = case_when((populacao < 20000) ~ "PP-I",
+                           (populacao >= 20000 & populacao < 50000) ~ "PP-II",
+                           (populacao >= 50000 & populacao < 100000) ~ "MP",
+                           (populacao >= 100000 & populacao < 900000) ~ "GP",
+                           (populacao >= 900000) ~ "Metrópole",
+                           TRUE ~ "Outros casos"))
+```
+
+#### 1.2.2. Cobertura de plano de saúde.
+
+A partir dos dados da base XXXXX, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
+
+``` sql
+
+SELECT cod_ibge, taxa FROM "Open Analytics Layer".Infraestrutura."Cobertura Plano de Saúde"
+```
+
+```{r}
+
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_cobertura_plano_saude"'
+
+
+
+cobertura_saude <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+
+
+```
+
+```{r}
+cobertura_saude <- cobertura_saude |> 
+  rename(cobertura_saude = taxa) |> 
+  mutate(cobertura_saude = as.numeric(cobertura_saude))
+
+base_tratada <- base_tratada |> 
+  left_join(cobertura_saude, by = c("CODUFMUN" = "cod_ibge"))
+```
+
+#### 1.2.3. Número vagas de medicina.
+
+A seguir, adicionaremos a variável número de vagas de medicina por município da base de dados XXXXXX, e calcularemos o número de vagas por mil habitantes.
+
+``` sql
+SELECT cod_ibge, 
+       SUM(qtd_ies_cursos) 
+       
+FROM "Open Analytics Layer"."Educação"."Quantidade de IES com cursos de saúde por município"
+
+GROUP BY cod_ibge
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_vagas_medicina"'
+
+
+
+vagas_medicina <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+
+base_tratada <- base_tratada |> 
+  left_join(vagas_medicina, by = c("CODUFMUN" = "cod_ibge"))
+
+base_tratada <- base_tratada |>
+  mutate(vagas_medicina = as.numeric(vagas_medicina)) |> 
+  mutate(vagas_medicina_milhab = (vagas_medicina/populacao)*1000) |> 
+  mutate(vagas_medicina = ifelse(is.na(vagas_medicina), 0, vagas_medicina)) |> 
+  mutate(vagas_medicina_milhab = ifelse(is.na(vagas_medicina_milhab), 0, vagas_medicina_milhab))
+```
+
+#### 1.2.4. PIB per capita.
+
+A seguir agregaremos a variável de PIB per capita, com dados entre 2010 e 2021.
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_pibpercapita"'
+
+
+
+pib_percapita <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+base_tratada$ano_competencia <- year(base_tratada$COMPETEN)
+pib_percapita <- pib_percapita |> 
+  mutate(pib_percapita = as.numeric(pib_percapita)) |> 
+  mutate(codigo_municipio = substring(codigo_municipio,1,6))
+
+base_tratada <- base_tratada |> 
+  left_join(pib_percapita, by = c("CODUFMUN" = "codigo_municipio", "ano_competencia" = "ano"))
+```
