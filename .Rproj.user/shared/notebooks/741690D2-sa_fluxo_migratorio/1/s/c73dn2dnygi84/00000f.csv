@@ -1,0 +1,4 @@
+"0","base_tratada$idade <- trunc(as.numeric(interval(base_tratada$data_nascimento, competencia) / years(1)))
+"
+"2","Erro: objeto 'competencia' não encontrado
+"
