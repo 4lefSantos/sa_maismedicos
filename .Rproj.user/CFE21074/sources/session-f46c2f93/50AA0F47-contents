@@ -1,0 +1,45 @@
+# Exemplo de vetor no formato atual
+string_vetor <- lista_municipios$CODUFMUN
+
+# Remover as aspas duplas do início e do fim
+string_vetor_sem_aspas_duplas <- gsub('^"|"$', '', string_vetor)
+
+# Dividir a string em um vetor de elementos separados por vírgula
+vetor <- unlist(strsplit(string_vetor_sem_aspas_duplas, ","))
+
+# Remover os acentos de cada elemento
+#vetor_sem_acentos <- iconv(vetor, from = "UTF-8", to = "ASCII//TRANSLIT")
+
+# Adicionar aspas simples em cada elemento
+vetor_com_aspas_simples <- paste0("'", vetor, "'")
+
+# Colapsar em uma única string separada por vírgulas
+resultado_final <- paste(vetor_com_aspas_simples, collapse = ",")
+
+# Exibir o resultado
+resultado_final
+vetor_com_aspas_simples
+
+
+Edital_11_2019_resultado_cns <- read_excel("01_dados/Editais/2019/Edital_11_2019_resultado_cns.xlsx") |> 
+  filter(!is.na(resultado))
+
+edital_11_2019_datalake_CNS <- read_csv("01_dados/Editais/2019/edital_11_2019_datalake_CNS.csv") |> 
+  filter(COMPETEN >= 201901) |> 
+  mutate(CNS_PROF = as.character(CNS_PROF)) |> 
+  select(CPF_PROF, CNS_PROF) |> 
+  distinct(CPF_PROF, CNS_PROF)
+
+cns_inscricao2 <- cns_inscricao |> 
+  left_join(edital_11_2019_datalake_CNS, by = c("cns" = "CNS_PROF"))
+
+write_xlsx(lista_cns_cpf, "01_dados/Editais/2019/teste.xlsx")
+  
+teste <- CNES_cpf |> 
+  distinct(CPF_PROF)
+
+dfs <- split(lista_cns_cpf, 1:4)
+df1 <- dfs[[1]]
+df2 <- dfs[[2]]
+df3 <- dfs[[3]]
+df4 <- dfs[[4]]

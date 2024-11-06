@@ -1,20 +1,39 @@
 {
-    "id": "2289EA9D",
+    "id": "9E3E59BC",
     "path": "~/GitHub/sa_maismedicos/02_script/sa_fluxo_migratorio.qmd",
     "project_path": "02_script/sa_fluxo_migratorio.qmd",
     "type": "quarto_markdown",
+<<<<<<< HEAD:.Rproj.user/CFE21074/sources/session-2f3f084d/9E3E59BC
+    "hash": "1324002006",
+=======
     "hash": "3119844859",
+>>>>>>> parent of 4eb6311 (UPDATE):.Rproj.user/CFE21074/sources/per/t/2289EA9D
     "contents": "",
     "dirty": false,
-    "created": 1729715965842.0,
+    "created": 1730828971070.0,
     "source_on_save": false,
-    "relative_order": 5,
+    "relative_order": 6,
     "properties": {
         "rmdVisualMode": "true",
         "rmdVisualWrapConfigured": "true",
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
+<<<<<<< HEAD:.Rproj.user/CFE21074/sources/session-2f3f084d/9E3E59BC
+        "cursorPosition": "17,0",
+        "scrollLine": "0",
+        "docOutlineVisible": "1",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "14092:0",
+        "docOutlineSize": "222"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1730826660,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1730839952348,
+=======
         "cursorPosition": "472,0",
         "scrollLine": "0",
         "docOutlineVisible": "1",
@@ -28,6 +47,7 @@
     "collab_server": "",
     "source_window": "",
     "last_content_update": 1729716334386,
+>>>>>>> parent of 4eb6311 (UPDATE):.Rproj.user/CFE21074/sources/per/t/2289EA9D
     "read_only": false,
     "read_only_alternatives": []
 }
