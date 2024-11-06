@@ -447,3 +447,125 @@ pib_percapita <- pib_percapita |>
 base_tratada <- base_tratada |> 
   left_join(pib_percapita, by = c("CODUFMUN" = "codigo_municipio", "ano_competencia" = "ano"))
 ```
+
+#### 1.2.5. Número de leitos por estabelecimento de saúde.
+
+O próximo indicador é o número de leitos por estabelecimento de saúde.
+
+``` sql
+SELECT 
+    substr(lt.COMPETEN, 1, 4) as ano,
+    lt.cnes,
+    m.uf_sigla,
+    CASE
+        WHEN LENGTH(m.cod_municipio) = 7 THEN SUBSTR(m.cod_municipio, 1, 6)
+        WHEN m.cod_municipio LIKE '53%' THEN '530010'
+        ELSE m.cod_municipio
+    END AS cod_ibge,    
+    m.municipio,
+    SUM(lt.QT_SUS) AS quantidade_sus,
+    SUM(lt.QT_NSUS) AS quantidade_nao_sus,
+    SUM(lt.QT_SUS) + SUM(lt.QT_NSUS) AS qt_total
+FROM
+    Dados.cnes.LT lt 
+LEFT JOIN 
+    "Open Analytics Layer".Territorial."Hierarquia completa dos municípios" m 
+    ON lt.CODUFMUN = CAST(m.cod_municipio AS CHAR)
+WHERE 
+    substr(lt.COMPETEN, 5, 2) = '01' AND 
+    substr(lt.COMPETEN, 1, 4) > 2018 AND
+    cnes IN (lista)
+GROUP BY
+    ano,
+    m.uf_sigla,
+    cod_ibge,
+    m.municipio,
+    lt.cnes
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_leitos"'
+
+
+
+leitos <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+leitos <- leitos |> 
+  select(cnes, ano, qt_total) |> 
+  mutate(ano = as.numeric(ano))
+
+base_tratada <- base_tratada |>
+  left_join(leitos, by = c("CNES" = "cnes", "ano_competencia" = "ano")) |> 
+  rename(qt_leitos_cnes = qt_total) |> 
+  mutate(qt_leitos_cnes = as.numeric(qt_leitos_cnes))
+```
+
+#### 1.2.6. Profissionais de saúde por estabelecimento de saúde.
+
+```{r}
+
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_equipe_cnes"'
+
+
+
+equipe_saude <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+equipe_saude <- equipe_saude |> 
+  select(CNES, ano, categoria, FTE_40) |> 
+  mutate(categoria = case_when(categoria == 	
+"Técnico ou Auxiliar de Enfermagem" ~ "tec_aux_enf",
+categoria == "Cirurgião Dentista" ~ "dentista",
+categoria == "Agente Comunitário de Saúde" ~ "agente_saude",
+categoria == "Enfermeiro" ~ "enfermeiro",
+TRUE ~ NA))
+
+teste <- equipe_saude |> 
+  pivot_wider(names_from = categoria, values_from = FTE_40) 
+
+```
