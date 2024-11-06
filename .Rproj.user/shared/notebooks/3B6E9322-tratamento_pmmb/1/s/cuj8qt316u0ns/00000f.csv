@@ -1,0 +1,5 @@
+"0","lista_cnes <- base_tratada |> "
+"0","  distinct(CNES)"
+"0",""
+"0","lista_municipios <- base_tratada |> "
+"0","  distinct(CODUFMUN)"
