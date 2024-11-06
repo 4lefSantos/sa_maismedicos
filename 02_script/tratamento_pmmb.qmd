@@ -10,7 +10,7 @@ O objetivo do presente trabalho é realizar uma análise do Programa Mais Médic
 
 O programa prevê vigência de três anos e a seleção é estruturada em duas fases:
 
-1ª. Destinado a formados e revalidados em instituições em brasileiras.\
+1ª. Destinado a formados e revalidados em instituições brasileiras.\
 2ª. Destinação das vagas remanescentes para habilitados médicos no exterior (médico intercambista).
 
 Abaixo os pacotes que serão necessários.
@@ -42,7 +42,7 @@ A primeira etapa consiste na elaboração da base de dados "primária" a partir 
 
 A partir dos resultados do edital do 18º Ciclo do pmmb, identificamos os médicos e realizamos o processo de web scrapping para identificar o CNS desses profissionais no site CNES.
 
-Após a transformação em planilha dos resultados do edital e a identificação do CNS, abriremos esses dados que representa 2452 médicos. No entanto, alguns médicos não foi possível identificaro o número de CNS (265 médicos).
+Após a transformação em planilha dos resultados do edital e a identificação do CNS pela raspagem, abriremos esses dados que representa 2452 médicos. No entanto, alguns médicos não foi possível identificaro o número de CNS (265 médicos).
 
 Para identifica o sexo utilizamos a função `get_gender` a partir dos nomes. No entanto, não foi possível a identificação em 144 profissionais.
 
@@ -127,7 +127,7 @@ lista_cpf <- CNES_cns |>
   distinct(CPF_PROF)
 ```
 
-Observa-se que a lista de CPF's retornou apenas 2034 observações, esse número reduzido é devido a médico duplicados em razão de registros com letras do nome trocadas.
+Observa-se que a lista de CPF's retornou apenas 2034 observações, esse número reduzido é devido a médicos duplicados em razão de registros com letras do nomes trocadas.
 
 Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
@@ -208,7 +208,7 @@ base_tratada <-
 
 ```
 
-A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o *left join* utilizando essa variável.
+A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o *left join* utilizando essa variável.
 
 ```{r}
 
@@ -356,12 +356,9 @@ base_tratada <- base_tratada |>
 A seguir, adicionaremos a variável número de vagas de medicina por município da base de dados XXXXXX, e calcularemos o número de vagas por mil habitantes.
 
 ``` sql
-SELECT cod_ibge, 
-       SUM(qtd_ies_cursos) 
-       
-FROM "Open Analytics Layer"."Educação"."Quantidade de IES com cursos de saúde por município"
-
-GROUP BY cod_ibge
+SELECT cod_ibge, SUM(vagas) AS vagas_medicina FROM "Open Analytics Layer"."Educação"."Quantidade de vagas, matriculados, concluintes e inscritos em curso superior por município"
+WHERE curso = 'Medicina'
+GROUP BY(cod_ibge)
 ```
 
 ```{r}
@@ -409,6 +406,14 @@ base_tratada <- base_tratada |>
 
 A seguir agregaremos a variável de PIB per capita, com dados entre 2010 e 2021.
 
+``` sql
+SELECT codigo_municipio, 
+       ano, 
+       produto_interno_bruto_capital_precos_correntes_1 AS pib_percapita
+       
+FROM Dados.pib."pib_2010_2021.parquet"
+```
+
 ```{r}
 # codigo para acessar dados de datalake proprio 
 
@@ -450,7 +455,7 @@ base_tratada <- base_tratada |>
 
 #### 1.2.5. Número de leitos por estabelecimento de saúde.
 
-O próximo indicador é o número de leitos por estabelecimento de saúde.
+O próximo indicador é o número de leitos por estabelecimento de saúde com dados da CNES.
 
 ``` sql
 SELECT 
@@ -568,4 +573,27 @@ TRUE ~ NA))
 teste <- equipe_saude |> 
   pivot_wider(names_from = categoria, values_from = FTE_40) 
 
+```
+
+#### 1.2.6. População ocupada.
+
+Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
+
+E calculamos o percentual da população ocupada com os dados do Censo 2022.
+
+```{r}
+pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
+  select(-municipio) |> 
+  mutate(across(-cod_ibge, as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para "character"
+  pivot_longer(
+    cols = -cod_ibge,
+    names_to = "ano",
+    values_to = "pop_ocupada"
+  ) |> 
+  mutate(ano = as.numeric(ano)) |> 
+  mutate(cod_ibge = substring(cod_ibge,1,6))
+
+base_tratada <- base_tratada |> 
+  left_join(pop_ocupada_mun, by = c("CODUFMUN" = "cod_ibge", "ano_competencia" = "ano")) |> 
+  mutate(tx_pop_ocupada = pop_ocupada/populacao)
 ```
