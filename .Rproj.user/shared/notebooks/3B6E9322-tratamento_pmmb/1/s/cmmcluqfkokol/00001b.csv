@@ -1,0 +1,13 @@
+"0","cpf_validos <- base_tratada %>%
+  filter(CODUFMUN == ibge_aloc, 
+         COMPETEN >= as.Date(""2019-11-01""), 
+         TP_UNID == ""02"") %>%
+  group_by(CPF_PROF) %>%
+  slice_min(order_by = COMPETEN, n = 1) %>%
+  ungroup() |> 
+  group_by(COMPETEN) |> 
+  count()
+"
+"2","Error in cpf_validos : 
+  The pipe operator requires a function call as RHS (<input>:8:1)
+"

@@ -1,0 +1,5 @@
+"0",""
+"0","prorrogacao_ciclo18 <- read_excel(""C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx"") |> "
+"0","  select(-CPF, -Ciclo)"
+"2","Erro: `path` does not exist: ‘C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx’
+"

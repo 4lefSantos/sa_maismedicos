@@ -1,0 +1,14 @@
+"0","base_tratada$ano_competencia <- year(base_tratada$COMPETEN)"
+"0","pib_percapita <- pib_percapita |> "
+"0","  mutate(pib_percapita = as.numeric(pib_percapita)) |> "
+"0","  mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> "
+"0","  mutate(ano = as.numeric(ano))"
+"0",""
+"0","base_tratada <- base_tratada |> "
+"0","  left_join(pib_percapita, by = c(""CODUFMUN"" = ""codigo_municipio"", ""ano_competencia"" = ""ano""))"
+"2","Warning in for (i in seq_len(n)) { :"
+"2"," closing unused RODBC handle 5
+"
+"2","Warning in for (i in seq_len(n)) { :"
+"2"," closing unused RODBC handle 3
+"

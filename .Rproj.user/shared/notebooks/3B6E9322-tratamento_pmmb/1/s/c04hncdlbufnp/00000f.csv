@@ -1,17 +1,19 @@
-"0","pop_ocupada_mun <- read_excel(""C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx"") |> 
-  select(-municipio) |> 
-  mutate(across(-cod_ibge, as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para ""character""
-  pivot_longer(
-    cols = -cod_ibge,
-    names_to = ""ano"",
-    values_to = ""pop_ocupada""
-  ) |> 
-  mutate(ano = as.numeric(ano)) |> 
-  mutate(cod_ibge = substring(cod_ibge,1,6))
-"
+"0","pop_ocupada_mun <- read_excel(""C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx"") |> "
+"0","  select(-municipio) |> "
+"0","  mutate(across(-cod_ibge, as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para ""character"""
+"0","  pivot_longer("
+"0","    cols = -cod_ibge,"
+"0","    names_to = ""ano"","
+"0","    values_to = ""pop_ocupada"""
+"0","  ) |> "
+"0","  mutate(ano = as.numeric(ano)) |> "
+"0","  mutate(cod_ibge = substring(cod_ibge,1,6))"
 "2","Warning: [38;5;232mThere were 7 warnings in `mutate()`.
 The first warning was:[39m
 [38;5;232m[36mℹ[38;5;232m In argument: `across(-cod_ibge, as.numeric)`.[39m
 Caused by warning:
 [33m![39m NAs introduzidos por coerção
 [38;5;232m[36mℹ[38;5;232m Run ]8;;ide:run:dplyr::last_dplyr_warnings()dplyr::last_dplyr_warnings()]8;; to see the 6 remaining warnings.[39m"
+"0","base_tratada <- base_tratada |> "
+"0","  left_join(pop_ocupada_mun, by = c(""CODUFMUN"" = ""cod_ibge"", ""ano_competencia"" = ""ano"")) |> "
+"0","  mutate(tx_pop_ocupada = pop_ocupada/populacao)"

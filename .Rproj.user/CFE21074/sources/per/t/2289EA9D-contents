@@ -36,7 +36,7 @@ Já em exercício, o médico deverá cumprir **carga horária de 40 horas** sema
 
 O edital não é taxativo em proibir outros vínculos profissionais, desde que seja compatível com a carga horária do programa. Veja:
 
-2.2.5. Não possuir vínculo de serviço com carga horária incompatível com as exigências do Projeto; \
+2.2.5. Não possuir vínculo de serviço com carga horária incompatível com as exigências do Projeto;\
 \* Mediante declaração, que ficará registrada no Termo de Aceite, quando do preenchimento do formulário de adesão.\
 
 Abaixo os pacotes que serão necessários.
@@ -473,7 +473,8 @@ pib_percapita <- sqlQuery(channel, query,
 base_tratada$ano_competencia <- year(base_tratada$COMPETEN)
 pib_percapita <- pib_percapita |> 
   mutate(pib_percapita = as.numeric(pib_percapita)) |> 
-  mutate(codigo_municipio = substring(codigo_municipio,1,6))
+  mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> 
+  mutate(ano = as.numeric(ano))
 
 base_tratada <- base_tratada |> 
   left_join(pib_percapita, by = c("CODUFMUN" = "codigo_municipio", "ano_competencia" = "ano"))
@@ -555,6 +556,64 @@ base_tratada <- base_tratada |>
 ```
 
 #### 1.2.6. Profissionais de saúde por estabelecimento de saúde.
+
+``` sql
+WITH ch_cnes_selecionados 
+
+AS(
+    SELECT CNES,
+        CODUFMUN, 
+        PF.NOMEPROF,
+        PF.CPF_PROF,
+        CBO,
+        CASE 
+            WHEN substr(CBO, 1, 4) = '2235' THEN 'Enfermeiro' 
+            WHEN substr(CBO, 1, 4) = '3222' THEN 'Técnico ou Auxiliar de Enfermagem'
+            WHEN substr(CBO, 1, 4) = '2232' THEN 'Cirurgião Dentista'
+            WHEN CBO = '515105' THEN 'Agente Comunitário de Saúde'
+        END AS categoria,
+        substr(COMPETEN, 1, 4) AS ANO,
+        CAST(PF.HORAHOSP + PF.HORAOUTR + PF.HORA_AMB AS FLOAT) AS CH_TOTAL
+    FROM Dados.cnes.PF
+    WHERE 
+        substr(PF.COMPETEN, 5, 2) = '01' AND
+        substr(PF.COMPETEN, 1, 4) > 2018 AND 
+        (CBO = '515105' OR 
+        substr(PF.CBO, 1, 4) = '2235' OR 
+        substr(PF.CBO, 1, 4) = '2232' OR 
+        PF.CBO = '322205' OR
+        PF.CBO = '322210' OR
+        PF.CBO = '322215' OR
+        PF.CBO = '322220' OR
+        PF.CBO = '322245' OR
+        PF.CBO = '322230' OR
+        PF.CBO = '322235' OR
+        PF.CBO = '322250' ) AND 
+        CNES IN (lista)) 
+
+SELECT a.ANO, 
+       a.CNES, 
+       b.FANTASIA,
+       c.uf_sigla,
+       a.CODUFMUN,
+       c.municipio, 
+       a.categoria,   
+       SUM(CH_TOTAL) AS CH,
+       SUM(CH_TOTAL)/40 AS FTE40
+FROM ch_cnes_selecionados a
+    LEFT JOIN Dados.cnes.CADGER b
+        ON a.CNES = b.CNES
+    LEFT JOIN "Open Analytics Layer".Territorial."Hierarquia completa dos municípios" c
+        ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
+GROUP BY 
+        ANO,
+        CNES, 
+        fantasia,
+        uf_sigla,
+        CODUFMUN, 
+        municipio,
+        categoria
+```
 
 ```{r}
 
@@ -641,9 +700,15 @@ Primeiro filtraremos apenas os anos pesteriores a 2019, e apenas aqueles médico
 base_tratada <- base_tratada |> 
   filter(ano_competencia >= 2019)
 
-cpf_validos <- base_tratada |> 
-  filter(CODUFMUN == ibge_aloc & COMPETEN == as.Date("2019-11-01")) |> 
-  distinct(CPF_PROF)
+cpf_validos <- base_tratada %>%
+  filter(CODUFMUN == ibge_aloc, 
+         COMPETEN >= as.Date("2019-11-01"), 
+         TP_UNID == "02") %>%
+  group_by(CPF_PROF) %>%
+  slice_min(order_by = COMPETEN, n = 1) |> 
+  ungroup() |> 
+  group_by(COMPETEN) |> 
+  count()
 
 base_tratada <- base_tratada |> 
   filter(CPF_PROF %in% cpf_validos$CPF_PROF)

@@ -1,0 +1,9 @@
+
+
+medicos <- base_tratada |> 
+  filter(COMPETEN == as.Date("2019-11-01")) |> 
+  select(NOMEPROF, CPF_PROF, CNS_PROF, municipio_destino, ibge_aloc) |> 
+  distinct(NOMEPROF, CPF_PROF, CNS_PROF, municipio_destino, ibge_aloc) |> 
+  sample_n(6)
+
+write_xlsx(medicos, "C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/controle.xlsx")

@@ -24,6 +24,13 @@
 "0",""
 "0","CNES_cpf <- sqlQuery(channel, query, "
 "0","                     as.is = TRUE)"
-"2","Warning in for (i in seq_len(n)) { :"
-"2"," closing unused RODBC handle 20
+"2","Warning in for (i in seq_along(value)) if (is.list(value[[i]])) class(value[[i]]) <- ""ODBC_binary"" :"
+"2","
+ "
+"2"," closing unused RODBC handle 2
+"
+"2","Warning in for (i in seq_along(value)) if (is.list(value[[i]])) class(value[[i]]) <- ""ODBC_binary"" :"
+"2","
+ "
+"2"," closing unused RODBC handle 1
 "
