@@ -6,12 +6,38 @@ editor: visual
 
 # Analysis: Programa Mais Médicos para o Brasil (pmmb)
 
-O objetivo do presente trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019).
+O objetivo do presente trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
 
-O programa prevê vigência de três anos e a seleção é estruturada em duas fases:
+O programa prevê vigência de três anos e a seleção é estruturada em **duas fases**:
 
 1ª. Destinado a formados e revalidados em instituições brasileiras.\
 2ª. Destinação das vagas remanescentes para habilitados médicos no exterior (médico intercambista).
+
+O médico indica **quatro localidades em ordem de preferência**. A concorrência se dará entre os profissionais que marcaram o maior grau de preferência, isto é, entre os que marcaram como primeira opção, na ausência, entre os segunda opação e assim sucessivamente.
+
+Entre os **critérios de classificação** estão:
+
+\- Título de Especialista e/ou Residência em Medicina da Família e Comunidade;\
+- Atuação como médico em Equipe de Saúde da Família;\
+- Ter sido bolsista do Programa de Educação pelo Trabalho para a Saúde (PET);\
+- Ter participado como estagiário em alguma edição da Vivência e Estágio na Realidade - do SUS (VER-SUS).
+
+**Em caso de empate**, impera os seguintes critérios conforme ordem a seguir:
+
+\- Candidatos que já atuaram no Programa Mais Médicos para o Brasil;\
+- Maior idade;\
+- Data de formação.
+
+No caso dos médicos intercambistas, além de auto-declarar conhecimento mínimo na lingua portuguesa, precisam ser aprovados no **Módulo de Acolhimento e Avaliação**. O módulo é executado em Brasília/DF, na modalidade presencial, com carga horária mínima de 160 horas. Contempla conteúdo relacionado à legislação referente ao SUS, notadamente da Atenção Básica em Saúde, aos protocolos clínicos de atendimento definidos pelo Ministério da Saúde, à Língua Portuguesa e ao Código de Ética Médica.
+
+Após aprovação, o médico deverá se apresentar no período indicado, no município de alocação, perante o gestor municipal, portando 2 (duas) vias do Termo de Adesão e Compromisso.
+
+Já em exercício, o médico deverá cumprir **carga horária de 40 horas** semanalmente, 8 horas em atividades acadêmicas teóricas e 32 horas em atividades nas unidades básicas de saúde no Município.
+
+O edital não é taxativo em proibir outros vínculos profissionais, desde que seja compatível com a carga horária do programa. Veja:
+
+2.2.5. Não possuir vínculo de serviço com carga horária incompatível com as exigências do Projeto; \
+\* Mediante declaração, que ficará registrada no Termo de Aceite, quando do preenchimento do formulário de adesão.\
 
 Abaixo os pacotes que serão necessários.
 
@@ -562,16 +588,23 @@ equipe_saude <- sqlQuery(channel, query,
 
 ```{r}
 equipe_saude <- equipe_saude |> 
-  select(CNES, ano, categoria, FTE_40) |> 
+  select(CNES, ANO, categoria, FTE40) |> 
   mutate(categoria = case_when(categoria == 	
 "Técnico ou Auxiliar de Enfermagem" ~ "tec_aux_enf",
 categoria == "Cirurgião Dentista" ~ "dentista",
 categoria == "Agente Comunitário de Saúde" ~ "agente_saude",
 categoria == "Enfermeiro" ~ "enfermeiro",
-TRUE ~ NA))
+TRUE ~ NA)) |> 
+  mutate(FTE40 = ifelse(is.na(FTE40), 0, FTE40))
 
-teste <- equipe_saude |> 
-  pivot_wider(names_from = categoria, values_from = FTE_40) 
+equipe_saude <- equipe_saude |> 
+  pivot_wider(names_from = categoria, values_from = FTE40) |> 
+  mutate(across(3:6, ~ ifelse(is.na(.), 0, .))) |> 
+  mutate(ANO = as.numeric(ANO))
+
+
+base_tratada <- base_tratada |> 
+  left_join(equipe_saude, by  = c("CNES" = "CNES", "ano_competencia" = "ANO"))
 
 ```
 
@@ -596,4 +629,22 @@ pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_mais
 base_tratada <- base_tratada |> 
   left_join(pop_ocupada_mun, by = c("CODUFMUN" = "cod_ibge", "ano_competencia" = "ano")) |> 
   mutate(tx_pop_ocupada = pop_ocupada/populacao)
+```
+
+### 2. Tratamento de dados.
+
+Finalizada a montagem da base de dados, daremos início a terceira etapa: tratamento dos dados.
+
+Primeiro filtraremos apenas os anos pesteriores a 2019, e apenas aqueles médicos que iniciaram o exercício nas cidades em que foram designados até novembro de 2019.
+
+```{r}
+base_tratada <- base_tratada |> 
+  filter(ano_competencia >= 2019)
+
+cpf_validos <- base_tratada |> 
+  filter(CODUFMUN == ibge_aloc & COMPETEN == as.Date("2019-11-01")) |> 
+  distinct(CPF_PROF)
+
+base_tratada <- base_tratada |> 
+  filter(CPF_PROF %in% cpf_validos$CPF_PROF)
 ```
