@@ -1,0 +1,12 @@
+"0","equipe_saude <- equipe_saude |> 
+"
+"2","Warning message:
+"
+"2","In for (i in seq_len(differences)) r <- r[i1] - r[-length(r):-(length(r) -  :"
+"2","
+ "
+"2"," closing unused RODBC handle 5
+"
+"0","  pivot_wider(names_from = categoria, values_from = FTE40) |> "
+"0","  mutate(across(3:6, ~ ifelse(is.na(.), 0, .))) |> "
+"0","  mutate(ANO = as.numeric(ANO))"

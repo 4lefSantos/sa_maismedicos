@@ -1,0 +1,8 @@
+"0","base_tratada2016 <- base_tratada2016 %>% "
+"0","  mutate(regiao_brasil_exercicio = case_when("
+"0","    (uf_sigla %in% c(""AM"", ""AP"", ""TO"", ""AC"", ""RR"", ""RO"", ""PA"")) ~ ""Norte"","
+"0","    (uf_sigla %in% c(""BA"", ""AL"", ""RN"", ""SE"", ""PI"", ""PB"", ""CE"", ""MA"", ""PE"")) ~ ""Nordeste"","
+"0","    (uf_sigla %in% c(""GO"", ""MT"", ""MS"", ""DF"")) ~ ""Centro-oeste"","
+"0","    (uf_sigla %in% c(""SC"", ""RS"", ""PR"")) ~ ""Sul"","
+"0","    (uf_sigla %in% c(""SP"", ""RJ"", ""ES"", ""MG"")) ~ ""Sudeste"","
+"0","    TRUE ~ ""Outro""))"

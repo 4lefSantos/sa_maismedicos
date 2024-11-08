@@ -1,0 +1,7 @@
+"0","cns_excluir <- base_tratada2016 |> 
+  filter(CODUFMUN == municipio_destino, COMPETEN %in% c(""201512"", ""201502"", ""201412"", ""201410""))
+  select(CNS_PROF) |> 
+  distinct()
+"
+"2","Erro: objeto 'CNS_PROF' não encontrado
+"
