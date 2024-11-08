@@ -1,7 +1,0 @@
-"0",""
-"0","ggseqtrplot(seq, "
-"0","            dss = FALSE) +"
-"0","  ggtitle(""Gráfico de transição"")"
-"2","Error in ggseqtrplot(seq, dss = FALSE) : 
-  não foi possível encontrar a função ""ggseqtrplot""
-"
