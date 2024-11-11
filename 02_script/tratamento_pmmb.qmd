@@ -158,26 +158,29 @@ Observa-se que a lista de CPF's retornou apenas 2034 observações, esse número
 Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
 ``` sql
-SELECT a.CNES, 
-       b.uf,
-       b.uf_sigla, 
+SELECT a.COMPETEN,
        a.CODUFMUN, 
-       b.municipio,
-       b.latitude,
-       b.longitude,
-       a.CPF_PROF, 
-       a.CBO, 
-       a.NOMEPROF, 
+       c.uf_sigla,
+       c.municipio_pad,
+       a.CNES, 
+       b.FANTASIA,
+       a.TP_UNID,
        a.CNS_PROF,
-       a.VINCULAC, 
-       a.HORAOUTR, 
-       a.HORAHOSP, 
-       a.HORA_AMB, 
-       a.COMPETEN
+       a.CPF_PROF,
+       a.NOMEPROF,
+       a.PROF_SUS,
+       a.vinculac,
+       a.HORAHOSP,
+       a.HORA_AMB,
+       a.HORAOUTR
 FROM Dados.cnes.PF a
-    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" b
-        ON a.CODUFMUN = CAST(b.cod_municipio AS CHARACTER)
+    LEFT JOIN Dados.cnes.CADGER b
+        ON a.CNES = b.CNES
+    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" c
+        ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
 WHERE CPF_PROF IN (lista)
+ORDER BY 
+    COMPETEN
 ```
 
 ```{r}
@@ -238,8 +241,7 @@ A próxima etapa será identificar os profissionais que tiveram a permanência n
 
 ```{r}
 
-prorrogacao_ciclo18 <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx") |> 
-  select(-CPF, -Ciclo)
+prorrogacao_ciclo18 <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
 
 base_tratada <- base_tratada |>   
   left_join(prorrogacao_ciclo18, by = c("NOMEPROF" = "NOME")) |>   
@@ -252,7 +254,7 @@ Finalizada a estruturação inicial da base de dados, identificaremos em qual co
 ```{r}
 
 compet_inicio <- base_tratada |> 
-  filter(CODUFMUN == ibge_aloc) |> 
+  filter(CODUFMUN == ibge_aloc, TP_UNID == "02") |> 
   group_by(COMPETEN, CNS_PROF) |> 
   ungroup(CNS_PROF) |> 
   distinct(CNS_PROF) |> 
@@ -697,19 +699,29 @@ Finalizada a montagem da base de dados, daremos início a terceira etapa: tratam
 Primeiro filtraremos apenas os anos pesteriores a 2019, e apenas aqueles médicos que iniciaram o exercício nas cidades em que foram designados até novembro de 2019.
 
 ```{r}
-base_tratada <- base_tratada |> 
-  filter(ano_competencia >= 2019)
 
-cpf_validos <- base_tratada %>%
-  filter(CODUFMUN == ibge_aloc, 
-         COMPETEN >= as.Date("2019-11-01"), 
-         TP_UNID == "02") %>%
-  group_by(CPF_PROF) %>%
+base_tratada <- base_tratada |> 
+  filter(COMPETEN >= as.Date("2019-01-01")) |> 
+  mutate(pmmb = ifelse(CODUFMUN == ibge_aloc & TP_UNID == "02", "Sim", "Não"))
+
+compet_inicio <- base_tratada |> 
+  filter(pmmb == "Sim") |> 
+  group_by(CPF_PROF) |> 
   slice_min(order_by = COMPETEN, n = 1) |> 
   ungroup() |> 
-  group_by(COMPETEN) |> 
-  count()
+  count(COMPETEN)
 
-base_tratada <- base_tratada |> 
+cpf_validos <- base_tratada |> 
+  filter(pmmb == "Sim") |> 
+  group_by(CPF_PROF) |> 
+  slice_min(order_by = COMPETEN, n = 1) |> 
+  ungroup() |> 
+  filter(COMPETEN >= as.Date("2019-06-01"), COMPETEN <= as.Date("2019-11-01")) |> 
+  distinct(CPF_PROF)
+
+base_final <- base_tratada |> 
   filter(CPF_PROF %in% cpf_validos$CPF_PROF)
+
+base_final <- base_final |> 
+  mutate(across(37:41, ~ ifelse(is.na(.), 0, .)))
 ```

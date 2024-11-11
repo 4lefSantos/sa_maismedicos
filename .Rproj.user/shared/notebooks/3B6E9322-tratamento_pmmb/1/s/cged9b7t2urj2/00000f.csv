@@ -6,3 +6,12 @@
 "0","  left_join(leitos, by = c(""CNES"" = ""cnes"", ""ano_competencia"" = ""ano"")) |> "
 "0","  rename(qt_leitos_cnes = qt_total) |> "
 "0","  mutate(qt_leitos_cnes = as.numeric(qt_leitos_cnes))"
+"2","Warning in for (i in seq_len(n)) { :"
+"2"," closing unused RODBC handle 5
+"
+"2","Warning in for (i in seq_len(n)) { :"
+"2"," closing unused RODBC handle 4
+"
+"2","Warning in for (i in seq_len(n)) { :"
+"2"," closing unused RODBC handle 2
+"

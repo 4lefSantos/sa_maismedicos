@@ -7,16 +7,7 @@
 "0","categoria == ""Enfermeiro"" ~ ""enfermeiro"","
 "0","TRUE ~ NA)) |> "
 "0","  mutate(FTE40 = ifelse(is.na(FTE40), 0, FTE40))"
-"2","Warning in for (i in seq_len(n_conditions)) { :"
-"2","
- "
-"2"," closing unused RODBC handle 7
-"
-"2","Warning in for (i in seq_len(n_conditions)) { :"
-"2","
- "
-"2"," closing unused RODBC handle 6
-"
+"0",""
 "0","equipe_saude <- equipe_saude |> "
 "0","  pivot_wider(names_from = categoria, values_from = FTE40) |> "
 "0","  mutate(across(3:6, ~ ifelse(is.na(.), 0, .))) |> "

@@ -1,8 +1,10 @@
 "0",""
 "0","base_tratada <- base_tratada |> "
 "0","  left_join(vagas_medicina, by = c(""CODUFMUN"" = ""cod_ibge""))"
-"2","Warning in for (i in seq_len(n)) { :"
-"2"," closing unused RODBC handle 4
+"2","Warning in for (j in seq_along(value)) { :"
+"2","
+ "
+"2"," closing unused RODBC handle 3
 "
 "0","base_tratada <- base_tratada |>"
 "0","  mutate(vagas_medicina = as.numeric(vagas_medicina)) |> "
