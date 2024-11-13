@@ -1,6 +1,6 @@
 "0",""
 "0","compet_inicio <- base_tratada |> "
-"0","  filter(CODUFMUN == ibge_aloc) |> "
+"0","  filter(CODUFMUN == ibge_aloc, TP_UNID == ""02"") |> "
 "0","  group_by(COMPETEN, CNS_PROF) |> "
 "0","  ungroup(CNS_PROF) |> "
 "0","  distinct(CNS_PROF) |> "

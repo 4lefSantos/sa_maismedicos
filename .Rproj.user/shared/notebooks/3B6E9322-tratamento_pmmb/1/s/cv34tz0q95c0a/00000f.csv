@@ -1,0 +1,7 @@
+"0","teste <- base_final %>%"
+"0","  filter(pmmb == ""Sim"") %>%"
+"0","  group_by(CPF_PROF) %>%"
+"0","  mutate("
+"0","    meses_no_programa = interval(min(COMPETEN), max(COMPETEN)) %/% months(1)"
+"0","  ) %>%"
+"0","  ungroup()"

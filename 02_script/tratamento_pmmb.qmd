@@ -36,7 +36,7 @@ Já em exercício, o médico deverá cumprir **carga horária de 40 horas** sema
 
 O edital não é taxativo em proibir outros vínculos profissionais, desde que seja compatível com a carga horária do programa. Veja:
 
-2.2.5. Não possuir vínculo de serviço com carga horária incompatível com as exigências do Projeto; \
+2.2.5. Não possuir vínculo de serviço com carga horária incompatível com as exigências do Projeto;\
 \* Mediante declaração, que ficará registrada no Termo de Aceite, quando do preenchimento do formulário de adesão.\
 
 Abaixo os pacotes que serão necessários.
@@ -53,9 +53,11 @@ library(genderBR)
 library(lubridate)
 library(writexl)
 library(RODBC)
+library(estimatr)
+library(plm)
 
 
-#install.packages("lubridate")
+#install.packages("plm")
 
 
 ```
@@ -81,7 +83,9 @@ cns_inscricao <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maisme
   rename(municipio_destino = municipio_aloc) |> 
   rename(uf_destino = uf_aloc) |> 
   mutate(cns = as.character(cns)) |>  
-  filter(!is.na(cns)) |> 
+  filter(!is.na(cns))
+
+cns_inscricao <- cns_inscricao |> 
   mutate(sexo = get_gender(cns_inscricao$nome)) |> 
   filter(!is.na(sexo))
 ```
@@ -158,26 +162,29 @@ Observa-se que a lista de CPF's retornou apenas 2034 observações, esse número
 Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
 ``` sql
-SELECT a.CNES, 
-       b.uf,
-       b.uf_sigla, 
+SELECT a.COMPETEN,
        a.CODUFMUN, 
-       b.municipio,
-       b.latitude,
-       b.longitude,
-       a.CPF_PROF, 
-       a.CBO, 
-       a.NOMEPROF, 
+       c.uf_sigla,
+       c.municipio_pad,
+       a.CNES, 
+       b.FANTASIA,
+       a.TP_UNID,
        a.CNS_PROF,
-       a.VINCULAC, 
-       a.HORAOUTR, 
-       a.HORAHOSP, 
-       a.HORA_AMB, 
-       a.COMPETEN
+       a.CPF_PROF,
+       a.NOMEPROF,
+       a.PROF_SUS,
+       a.vinculac,
+       a.HORAHOSP,
+       a.HORA_AMB,
+       a.HORAOUTR
 FROM Dados.cnes.PF a
-    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" b
-        ON a.CODUFMUN = CAST(b.cod_municipio AS CHARACTER)
+    LEFT JOIN Dados.cnes.CADGER b
+        ON a.CNES = b.CNES
+    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" c
+        ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
 WHERE CPF_PROF IN (lista)
+ORDER BY 
+    COMPETEN
 ```
 
 ```{r}
@@ -238,8 +245,7 @@ A próxima etapa será identificar os profissionais que tiveram a permanência n
 
 ```{r}
 
-prorrogacao_ciclo18 <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx") |> 
-  select(-CPF, -Ciclo)
+prorrogacao_ciclo18 <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
 
 base_tratada <- base_tratada |>   
   left_join(prorrogacao_ciclo18, by = c("NOMEPROF" = "NOME")) |>   
@@ -252,7 +258,7 @@ Finalizada a estruturação inicial da base de dados, identificaremos em qual co
 ```{r}
 
 compet_inicio <- base_tratada |> 
-  filter(CODUFMUN == ibge_aloc) |> 
+  filter(CODUFMUN == ibge_aloc, TP_UNID == "02") |> 
   group_by(COMPETEN, CNS_PROF) |> 
   ungroup(CNS_PROF) |> 
   distinct(CNS_PROF) |> 
@@ -473,7 +479,8 @@ pib_percapita <- sqlQuery(channel, query,
 base_tratada$ano_competencia <- year(base_tratada$COMPETEN)
 pib_percapita <- pib_percapita |> 
   mutate(pib_percapita = as.numeric(pib_percapita)) |> 
-  mutate(codigo_municipio = substring(codigo_municipio,1,6))
+  mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> 
+  mutate(ano = as.numeric(ano))
 
 base_tratada <- base_tratada |> 
   left_join(pib_percapita, by = c("CODUFMUN" = "codigo_municipio", "ano_competencia" = "ano"))
@@ -556,6 +563,64 @@ base_tratada <- base_tratada |>
 
 #### 1.2.6. Profissionais de saúde por estabelecimento de saúde.
 
+``` sql
+WITH ch_cnes_selecionados 
+
+AS(
+    SELECT CNES,
+        CODUFMUN, 
+        PF.NOMEPROF,
+        PF.CPF_PROF,
+        CBO,
+        CASE 
+            WHEN substr(CBO, 1, 4) = '2235' THEN 'Enfermeiro' 
+            WHEN substr(CBO, 1, 4) = '3222' THEN 'Técnico ou Auxiliar de Enfermagem'
+            WHEN substr(CBO, 1, 4) = '2232' THEN 'Cirurgião Dentista'
+            WHEN CBO = '515105' THEN 'Agente Comunitário de Saúde'
+        END AS categoria,
+        substr(COMPETEN, 1, 4) AS ANO,
+        CAST(PF.HORAHOSP + PF.HORAOUTR + PF.HORA_AMB AS FLOAT) AS CH_TOTAL
+    FROM Dados.cnes.PF
+    WHERE 
+        substr(PF.COMPETEN, 5, 2) = '01' AND
+        substr(PF.COMPETEN, 1, 4) > 2018 AND 
+        (CBO = '515105' OR 
+        substr(PF.CBO, 1, 4) = '2235' OR 
+        substr(PF.CBO, 1, 4) = '2232' OR 
+        PF.CBO = '322205' OR
+        PF.CBO = '322210' OR
+        PF.CBO = '322215' OR
+        PF.CBO = '322220' OR
+        PF.CBO = '322245' OR
+        PF.CBO = '322230' OR
+        PF.CBO = '322235' OR
+        PF.CBO = '322250' ) AND 
+        CNES IN (lista)) 
+
+SELECT a.ANO, 
+       a.CNES, 
+       b.FANTASIA,
+       c.uf_sigla,
+       a.CODUFMUN,
+       c.municipio, 
+       a.categoria,   
+       SUM(CH_TOTAL) AS CH,
+       SUM(CH_TOTAL)/40 AS FTE40
+FROM ch_cnes_selecionados a
+    LEFT JOIN Dados.cnes.CADGER b
+        ON a.CNES = b.CNES
+    LEFT JOIN "Open Analytics Layer".Territorial."Hierarquia completa dos municípios" c
+        ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
+GROUP BY 
+        ANO,
+        CNES, 
+        fantasia,
+        uf_sigla,
+        CODUFMUN, 
+        municipio,
+        categoria
+```
+
 ```{r}
 
 # codigo para acessar dados de datalake proprio 
@@ -635,16 +700,59 @@ base_tratada <- base_tratada |>
 
 Finalizada a montagem da base de dados, daremos início a terceira etapa: tratamento dos dados.
 
-Primeiro filtraremos apenas os anos pesteriores a 2019, e apenas aqueles médicos que iniciaram o exercício nas cidades em que foram designados até novembro de 2019.
+O primeiro tratamento a ser realizado, é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que identifica se o médico está na cidade no qual foi designado e se está alocado em uma unidade de atenção básica.
+
+Com essa variável verificaremos qual foi a primeira competência em que essas condições foram satisfeitas.. Observa-se que entre junho e novembro de 2019 há um número considerável de médicos migrando para as cidades de designação.
+
+A partir dessa identificação, filtraremos a base apenas com esses médicos.
 
 ```{r}
+# Variável auxiliar pmmb
 base_tratada <- base_tratada |> 
-  filter(ano_competencia >= 2019)
+  filter(COMPETEN >= as.Date("2019-01-01")) |> 
+  mutate(pmmb = ifelse(CODUFMUN == ibge_aloc & TP_UNID == "02", "Sim", "Não"))
 
+# Identificando a primeira competência de pmmb
+compet_inicio <- base_tratada |> 
+  filter(pmmb == "Sim") |> 
+  group_by(CPF_PROF) |> 
+  slice_min(order_by = COMPETEN, n = 1) |> 
+  ungroup() |> 
+  count(COMPETEN)
+
+#Identificando os médicos que entraram entre junho e novembro
 cpf_validos <- base_tratada |> 
-  filter(CODUFMUN == ibge_aloc & COMPETEN == as.Date("2019-11-01")) |> 
+  filter(pmmb == "Sim") |> 
+  group_by(CPF_PROF) |> 
+  slice_min(order_by = COMPETEN, n = 1) |> 
+  ungroup() |> 
+  filter(COMPETEN >= as.Date("2019-06-01"), COMPETEN <= as.Date("2019-11-01")) |> 
   distinct(CPF_PROF)
 
-base_tratada <- base_tratada |> 
+#Filtrando a base apenas com os médicos ingressantes
+base_final <- base_tratada |> 
   filter(CPF_PROF %in% cpf_validos$CPF_PROF)
+
+base_final <- base_final |> 
+  mutate(across(37:41, ~ ifelse(is.na(.), 0, .)))
+```
+
+A seguir será criada uma variável identificando a quantidade de vínculos que os médicos possuem por competência.
+
+```{r}
+base_final <- base_final |> 
+  group_by(CPF_PROF, COMPETEN) |> 
+  mutate(vinculos = n()) |> 
+  ungroup()
+```
+
+A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação e em unidade de atenção básica.
+
+```{r}
+base_final <- base_final %>%
+  group_by(CPF_PROF) %>%
+  mutate(
+    meses_no_programa = interval(min(COMPETEN[pmmb == "Sim"]), max(COMPETEN[pmmb == "Sim"])) %/% months(1)
+  ) %>%
+  ungroup()
 ```

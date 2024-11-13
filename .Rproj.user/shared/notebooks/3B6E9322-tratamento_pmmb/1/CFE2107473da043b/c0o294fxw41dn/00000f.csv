@@ -1,0 +1,6 @@
+"0",""
+"0","base_tratada <- "
+"0","  CNES_cpf |> "
+"0","  left_join(cns_inscricao, by = c(""CPF_PROF"" = ""CPF_PROF""))"
+"0",""
+"0",""

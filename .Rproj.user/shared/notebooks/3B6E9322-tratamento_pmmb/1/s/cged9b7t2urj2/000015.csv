@@ -1,8 +1,0 @@
-"0","teste <- base_tratada |>
-  left_join(leitos, by = c(""CNES"" = ""cnes"", ""ano_competencia"" = ""ano"")) |> 
-  rename(qt_leitos = qt_total) |> 
-  mutate(qt_leitos = as.numeric(qt_leitos))
-  mutate(qt_leitosmilhab = (qt_leitos/populacao)*1000)
-"
-"2","Erro: objeto 'qt_leitos' não encontrado
-"
