@@ -1,0 +1,4 @@
+"0","base_final <- base_final |> "
+"0","  group_by(CPF_PROF, COMPETEN) |> "
+"0","  mutate(vinculos = n()) |> "
+"0","  ungroup()"

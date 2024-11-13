@@ -2,8 +2,5 @@
 "0","base_tratada <- "
 "0","  CNES_cpf |> "
 "0","  left_join(cns_inscricao, by = c(""CPF_PROF"" = ""CPF_PROF""))"
-"2","Warning in for (j in seq_along(value)) { :"
-"2","
- "
-"2"," closing unused RODBC handle 1
-"
+"0",""
+"0",""

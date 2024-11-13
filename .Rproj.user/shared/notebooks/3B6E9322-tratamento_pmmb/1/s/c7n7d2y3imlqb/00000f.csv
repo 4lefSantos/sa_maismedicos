@@ -24,3 +24,9 @@
 "0",""
 "0","CNES_cns <- sqlQuery(channel, query, "
 "0","                     as.is = TRUE)"
+"2","Warning in drop :"
+"2"," closing unused RODBC handle 7
+"
+"2","Warning in drop :"
+"2"," closing unused RODBC handle 6
+"
