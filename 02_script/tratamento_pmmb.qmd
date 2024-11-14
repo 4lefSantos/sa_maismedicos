@@ -264,48 +264,61 @@ base_tratada <- CNES_cpf |>
 
 ```
 
-A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o *left join* utilizando essa variável.
+O próximo passo é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que identifica se o médico está na cidade no qual foi designado e se está alocado em uma unidade de atenção básica.
+
+Com essa variável verificaremos qual foi a primeira competência em que essas condições foram satisfeitas.. Observa-se que entre junho e novembro de 2019 há um número considerável de médicos migrando para as cidades de designação.
+
+A partir dessa identificação, filtraremos a base apenas com esses médicos.
 
 ```{r}
-
-prorrogacao_ciclo18 <- 
-  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
-
-base_tratada <- 
-  base_tratada |>   
-  left_join(prorrogacao_ciclo18, 
-            by = c("NOMEPROF" = "NOME")) |>   
-  mutate(Prorrogado = ifelse(is.na(Prorrogado), 
-                             "NÃO", 
-                             Prorrogado))
-
-```
-
-Finalizada a estruturação inicial da base de dados, identificaremos em qual competência os profissionais iniciaram o exercício na cidade em que foram designados.
-
-```{r}
-
-compet_inicio <- 
-  base_tratada |> 
-  filter(CODUFMUN == ibge_aloc, 
-         TP_UNID == "02") |> 
-  group_by(COMPETEN, 
-           CNS_PROF) |> 
-  ungroup(CNS_PROF) |> 
-  distinct(CNS_PROF) |> 
-  summarise(competencia_inicio = n())
-
-```
-
-Observa-se que a competência em que os médicos iniciam o exercício nas cidades é junho de 2019, e até novembro ainda há profissionais começando nas localidades.
-
-Com isso, admitiremos novembro de 2019 como a competência que finaliza o inicio do programa. E a partir dessa referência, calcularemos a idade dos médicos e o seu tempo de formação.
-
-```{r}
-
+#Convertendo competência para formato data
 base_tratada$COMPETEN <- 
   as.Date(paste0(base_tratada$COMPETEN, "01"), 
           format = "%Y%m%d")
+
+# Variável auxiliar pmmb
+base_tratada <- base_tratada |> 
+  filter(COMPETEN >= as.Date("2019-01-01")) |> 
+  mutate(pmmb = ifelse(CODUFMUN == ibge_aloc & TP_UNID == "02", "Sim", "Não"))
+
+# Identificando a primeira competência de pmmb
+compet_inicio <- base_tratada |> 
+  filter(pmmb == "Sim") |> 
+  group_by(CPF_PROF) |> 
+  slice_min(order_by = COMPETEN, n = 1) |> 
+  ungroup() |> 
+  count(COMPETEN)
+
+#Identificando os médicos que entraram entre junho e novembro
+cpf_validos <- base_tratada |> 
+  filter(pmmb == "Sim") |> 
+  group_by(CPF_PROF) |> 
+  slice_min(order_by = COMPETEN, n = 1) |> 
+  ungroup() |> 
+  filter(COMPETEN >= as.Date("2019-06-01"), 
+         COMPETEN <= as.Date("2019-11-01")) |> 
+  distinct(CPF_PROF)
+
+#Filtrando a base apenas com os médicos ingressantes
+base_tratada <- base_tratada |> 
+  filter(CPF_PROF %in% cpf_validos$CPF_PROF)
+```
+
+A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação e em unidade de atenção básica e a quantidade de vínculos que os médicos possuem por competência.
+
+```{r}
+
+base_tratada <- base_tratada %>%
+  group_by(CPF_PROF) %>%
+  mutate(
+    meses_no_programa = interval(min(COMPETEN[pmmb == "Sim"]), max(COMPETEN[pmmb == "Sim"])) %/% months(1)
+  ) %>%
+  ungroup()
+```
+
+Admitindo novembro de 2019 como a competência que finaliza o inicio do programa, calcularemos a idade dos médicos e o seu tempo de formação.
+
+```{r}
 
 # Convertendo a data de referência (competência) para o formato Date
 competencia <- as.Date("2019-11-01")
@@ -320,6 +333,22 @@ base_tratada$data_formacao <-
 
 # Calculando o tempo de formação
 base_tratada$tempo_formacao <- trunc(as.numeric(interval(base_tratada$data_formacao, competencia) / years(1)))
+```
+
+A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o *left join* utilizando essa variável.
+
+```{r}
+
+prorrogacao_ciclo18 <- 
+  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
+
+base_tratada <- 
+  base_tratada |>   
+  left_join(prorrogacao_ciclo18, 
+            by = c("NOMEPROF" = "NOME")) |>   
+  mutate(Prorrogado = ifelse(is.na(Prorrogado), 
+                             "NÃO", 
+                             Prorrogado))
 
 ```
 
@@ -750,64 +779,4 @@ base_tratada <-
 
 ```
 
-### 2. Tratamento de dados.
-
-Finalizada a montagem da base de dados, daremos início a terceira etapa: tratamento dos dados.
-
-O primeiro tratamento a ser realizado, é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que identifica se o médico está na cidade no qual foi designado e se está alocado em uma unidade de atenção básica.
-
-Com essa variável verificaremos qual foi a primeira competência em que essas condições foram satisfeitas.. Observa-se que entre junho e novembro de 2019 há um número considerável de médicos migrando para as cidades de designação.
-
-A partir dessa identificação, filtraremos a base apenas com esses médicos.
-
-```{r}
-# Variável auxiliar pmmb
-base_tratada <- base_tratada |> 
-  filter(COMPETEN >= as.Date("2019-01-01")) |> 
-  mutate(pmmb = ifelse(CODUFMUN == ibge_aloc & TP_UNID == "02", "Sim", "Não"))
-
-# Identificando a primeira competência de pmmb
-compet_inicio <- base_tratada |> 
-  filter(pmmb == "Sim") |> 
-  group_by(CPF_PROF) |> 
-  slice_min(order_by = COMPETEN, n = 1) |> 
-  ungroup() |> 
-  count(COMPETEN)
-
-#Identificando os médicos que entraram entre junho e novembro
-cpf_validos <- base_tratada |> 
-  filter(pmmb == "Sim") |> 
-  group_by(CPF_PROF) |> 
-  slice_min(order_by = COMPETEN, n = 1) |> 
-  ungroup() |> 
-  filter(COMPETEN >= as.Date("2019-06-01"), 
-         COMPETEN <= as.Date("2019-11-01")) |> 
-  distinct(CPF_PROF)
-
-#Filtrando a base apenas com os médicos ingressantes
-base_final <- base_tratada |> 
-  filter(CPF_PROF %in% cpf_validos$CPF_PROF)
-
-base_final <- base_final |> 
-  mutate(across(37:41, ~ ifelse(is.na(.), 0, .)))
-```
-
-A seguir será criada uma variável identificando a quantidade de vínculos que os médicos possuem por competência.
-
-```{r}
-base_final <- base_final |> 
-  group_by(CPF_PROF, COMPETEN) |> 
-  mutate(vinculos = n()) |> 
-  ungroup()
-```
-
-A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação e em unidade de atenção básica.
-
-```{r}
-base_final <- base_final %>%
-  group_by(CPF_PROF) %>%
-  mutate(
-    meses_no_programa = interval(min(COMPETEN[pmmb == "Sim"]), max(COMPETEN[pmmb == "Sim"])) %/% months(1)
-  ) %>%
-  ungroup()
-```
+### 
