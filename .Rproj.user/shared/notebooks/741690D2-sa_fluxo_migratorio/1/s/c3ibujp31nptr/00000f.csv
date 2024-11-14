@@ -1,3 +1,0 @@
-"0",""
-"0","base_tratada <-base_tratada |> "
-"0","  mutate(estava_na_cidade = ifelse(COMPETEN == as.Date(""2019-04-01"") & CODUFMUN == ibge_aloc, ""Sim"", ""Não""))"

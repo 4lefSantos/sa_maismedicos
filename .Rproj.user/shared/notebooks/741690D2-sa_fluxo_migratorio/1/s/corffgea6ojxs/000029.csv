@@ -1,5 +1,0 @@
-"0","cns_inscricao <- read_excel(""C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/Edital_11_2019_resultado_cns_cpf.xlsx"")
-"
-"2","Error in utils::unzip(zip_path, list = TRUE) : 
-  arquivo zip 'C:\Users\alefs\OneDrive\Documentos\GitHub\sa_maismedicos\01_dados\Editais\2019\Edital_11_2019_resultado_cns_cpf.xlsx' não pode ser aberto
-"

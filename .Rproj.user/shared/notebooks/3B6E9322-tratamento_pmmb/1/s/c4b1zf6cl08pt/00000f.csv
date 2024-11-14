@@ -1,5 +1,0 @@
-"0","group_by(COMPETEN) |> 
-  count()
-"
-"2","Erro: objeto 'COMPETEN' não encontrado
-"

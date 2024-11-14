@@ -1,8 +1,0 @@
-"0",""
-"0","prorrogacao_ciclo18 <- read_excel(""C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx"") |> "
-"0","  select(-CPF, -Ciclo)"
-"0",""
-"0","base_tratada <- base_tratada |>   "
-"0","  left_join(prorrogacao_ciclo18, by = c(""NOMEPROF"" = ""NOME"")) |>   "
-"0","  mutate(Prorrogado = ifelse(is.na(Prorrogado), ""NÃO"", Prorrogado))"
-"0",""

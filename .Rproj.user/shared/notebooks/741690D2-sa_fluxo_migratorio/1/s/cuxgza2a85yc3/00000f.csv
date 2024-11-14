@@ -1,3 +1,0 @@
-"0","cobertura_saude <- cobertura_saude |> "
-"0","  rename(cobertura_saude = taxa) |> "
-"0","  mutate(cobertura_saude = as.numeric(cobertura_saude))"

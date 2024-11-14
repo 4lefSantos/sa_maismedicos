@@ -56,41 +56,51 @@ library(RODBC)
 library(estimatr)
 library(plm)
 
-
 #install.packages("plm")
-
 
 ```
 
 ## 1. Montagem da base de dados.
 
-### 1.1. Base de dados "primária".
+### 1.1. Tratamento de dados do Mais Médicos
 
-A primeira etapa consiste na elaboração da base de dados "primária" a partir de diversas fontes.
+A primeira etapa consiste na elaboração da base de dados com tratamento do Mais Médicos.
 
-A partir dos resultados do edital do 18º Ciclo do pmmb, identificamos os médicos e realizamos o processo de web scrapping para identificar o CNS desses profissionais no site CNES.
+A partir dos resultados do edital do 18º Ciclo do PMMB, identificamos os médicos e realizamos o processo de *web scrapping* para identificar o CNS desses profissionais no site CNES.
 
-Após a transformação em planilha dos resultados do edital e a identificação do CNS pela raspagem, abriremos esses dados que representa 2452 médicos. No entanto, alguns médicos não foi possível identificaro o número de CNS (265 médicos).
+Após a transformação em planilha dos resultados do edital e a identificação do CNS pela raspagem, abriremos esses dados que representam 2452 médicos. Para alguns médicos, não foi possível identificar o número de CNS (265 médicos). Isso ocorre devido à presença de homônimos.
 
-Para identifica o sexo utilizamos a função `get_gender` a partir dos nomes. No entanto, não foi possível a identificação em 144 profissionais.
+Para identificar o sexo, utilizamos a função `get_gender()` a partir dos nomes. No entanto, não foi possível a identificação em 144 profissionais. Isso ocorre, pois são nomes que podem ser assumidos por ambos os sexos.
 
 Restando o número de 2043 médicos.
 
 ```{r}
-cns_inscricao <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/Edital_11_2019_resultado_cns.xlsx") |> 
-  select(nome,uf_aloc, municipio_aloc, ibge_aloc,participou_pmmb, data_nascimento, data_formacao, fase ,resultado) |> 
+
+cns_inscricao <- 
+  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/Edital_11_2019_resultado_cns.xlsx") |> 
+  select(nome, 
+         uf_aloc, 
+         municipio_aloc, 
+         ibge_aloc,
+         participou_pmmb, 
+         data_nascimento,
+         data_formacao, 
+         fase, 
+         resultado) |> 
   rename(cns = resultado) |> 
   rename(municipio_destino = municipio_aloc) |> 
   rename(uf_destino = uf_aloc) |> 
   mutate(cns = as.character(cns)) |>  
   filter(!is.na(cns))
 
-cns_inscricao <- cns_inscricao |> 
-  mutate(sexo = get_gender(cns_inscricao$nome)) |> 
+cns_inscricao <- 
+  cns_inscricao |> 
+  mutate(sexo = get_gender(nome)) |> 
   filter(!is.na(sexo))
+
 ```
 
-Com base nesse resultado final, extraímos todos os CNS em um vetor para executar uma consulta no datalake, a fim de identificar os respectivos CPFs.
+Com base nesse resultado final, extraímos todos os CNS em um vetor para executar uma consulta no datalake, a fim de identificar os respectivos CPFs. Cabe mencionar que estes CPFs são criptografados, mas que podem ser utilizados como chave de identificação individualizada.
 
 Essa consulta gerou uma base denominada CNES_cns.
 
@@ -128,11 +138,12 @@ dremio_uid <- Sys.getenv("uid")
 dremio_pwd <- Sys.getenv("datalake")
 
 
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
+channel <- odbcDriverConnect(
+                    sprintf("DRIVER=Dremio Connector;
+                             HOST=%s;
+                             PORT=%s;
+                             UID=%s;
+                             PWD=%s;
                                      AUTHENTICATIONTYPE=Basic Authentication;
                                      CONNECTIONTYPE=Direct", 
                          dremio_host, 
@@ -143,13 +154,14 @@ channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
 query <- 'SELECT * FROM "@alef_santos"."Consulta_maismedicos_2019_cns"'
 
 
-
 CNES_cns <- sqlQuery(channel, query, 
                      as.is = TRUE)
+
 ```
 
 ```{r}
 #identificando os CPF
+
 lista_cpf <- CNES_cns |> 
   filter(COMPETEN >= 201901) |> 
   mutate(CNS_PROF = as.character(CNS_PROF)) |> 
@@ -157,9 +169,9 @@ lista_cpf <- CNES_cns |>
   distinct(CPF_PROF)
 ```
 
-Observa-se que a lista de CPF's retornou apenas 2034 observações, esse número reduzido é devido a médicos duplicados em razão de registros com letras do nomes trocadas.
+Observa-se que a lista de CPF's retornou apenas 2034 observações. Esse número reduzido é devido a médicos duplicados em razão de registros com letras do nomes trocadas. Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
-Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
+Observação: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
 
 ``` sql
 SELECT a.COMPETEN,
@@ -196,7 +208,8 @@ dremio_uid <- Sys.getenv("uid")
 dremio_pwd <- Sys.getenv("datalake")
 
 
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+channel <- odbcDriverConnect(
+              sprintf("DRIVER=Dremio Connector;
                                      HOST=%s;
                                      PORT=%s;
                                      UID=%s;
@@ -212,32 +225,42 @@ query <- 'SELECT * FROM "@alef_santos"."Consulta_maismedicos_2019"'
 
 
 
-CNES_cpf <- sqlQuery(channel, query, 
+CNES_cpf <- sqlQuery(channel, 
+                     query, 
                      as.is = TRUE)
 ```
 
-O próximo passo será unir as duas bases: a de inscrição e os resultados gerados pela consulta. No entanto, como a base de inscrição não possui a variável CPF, primeiro será necessário adicioná-la a essa base para, em seguida, realizar um *left_join* com a base CNES_cpf.
+O próximo passo será unir as duas bases:
+
+1\) a de inscrição, pois estas trazem dados sobre o inscrito (ex.: local onde foi alocado, ano de formação)
+
+2\) e a base do CNES-PF com o acompanhamento dos indivíduos. os resultados gerados pela consulta.
+
+No entanto, como a base de inscrição não possui a variável CPF, primeiro será necessário adicioná-la a essa base para, em seguida, realizar um *left_join* com a base CNES_cpf.
 
 ```{r}
 
-lista_cns_cpf <- CNES_cns |> 
-  filter(COMPETEN >= 201901) |> 
-  mutate(CNS_PROF = as.character(CNS_PROF)) |> 
-  select(CPF_PROF, CNS_PROF) |> 
-  distinct(CPF_PROF, CNS_PROF)
+lista_cns_cpf <- 
+        CNES_cns |> 
+        filter(COMPETEN >= 201901) |> 
+        mutate(CNS_PROF = as.character(CNS_PROF)) |> 
+        select(CPF_PROF, CNS_PROF) |> 
+        distinct(CPF_PROF, CNS_PROF)
 
-cns_inscricao <- cns_inscricao |> 
-  left_join(lista_cns_cpf, by = c("cns" = "CNS_PROF"))
+cns_inscricao <- 
+  cns_inscricao |> 
+  left_join(lista_cns_cpf, 
+            by = c("cns" = "CNS_PROF"))
+
 ```
 
 Agora adicionada a coluna de CPF na base cns_inscricao, faremos um left join entre ela e a base CNES_cns.
 
 ```{r}
 
-base_tratada <- 
-  CNES_cpf |> 
-  left_join(cns_inscricao, by = c("CPF_PROF" = "CPF_PROF"))
-
+base_tratada <- CNES_cpf |> 
+                left_join(cns_inscricao, 
+                  by = c("CPF_PROF" = "CPF_PROF"))
 
 ```
 
@@ -245,11 +268,16 @@ A próxima etapa será identificar os profissionais que tiveram a permanência n
 
 ```{r}
 
-prorrogacao_ciclo18 <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
+prorrogacao_ciclo18 <- 
+  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
 
-base_tratada <- base_tratada |>   
-  left_join(prorrogacao_ciclo18, by = c("NOMEPROF" = "NOME")) |>   
-  mutate(Prorrogado = ifelse(is.na(Prorrogado), "NÃO", Prorrogado))
+base_tratada <- 
+  base_tratada |>   
+  left_join(prorrogacao_ciclo18, 
+            by = c("NOMEPROF" = "NOME")) |>   
+  mutate(Prorrogado = ifelse(is.na(Prorrogado), 
+                             "NÃO", 
+                             Prorrogado))
 
 ```
 
@@ -257,12 +285,16 @@ Finalizada a estruturação inicial da base de dados, identificaremos em qual co
 
 ```{r}
 
-compet_inicio <- base_tratada |> 
-  filter(CODUFMUN == ibge_aloc, TP_UNID == "02") |> 
-  group_by(COMPETEN, CNS_PROF) |> 
+compet_inicio <- 
+  base_tratada |> 
+  filter(CODUFMUN == ibge_aloc, 
+         TP_UNID == "02") |> 
+  group_by(COMPETEN, 
+           CNS_PROF) |> 
   ungroup(CNS_PROF) |> 
   distinct(CNS_PROF) |> 
   summarise(competencia_inicio = n())
+
 ```
 
 Observa-se que a competência em que os médicos iniciam o exercício nas cidades é junho de 2019, e até novembro ainda há profissionais começando nas localidades.
@@ -270,8 +302,10 @@ Observa-se que a competência em que os médicos iniciam o exercício nas cidade
 Com isso, admitiremos novembro de 2019 como a competência que finaliza o inicio do programa. E a partir dessa referência, calcularemos a idade dos médicos e o seu tempo de formação.
 
 ```{r}
-base_tratada$COMPETEN <- as.Date(paste0(base_tratada$COMPETEN, "01"), format = "%Y%m%d")
 
+base_tratada$COMPETEN <- 
+  as.Date(paste0(base_tratada$COMPETEN, "01"), 
+          format = "%Y%m%d")
 
 # Convertendo a data de referência (competência) para o formato Date
 competencia <- as.Date("2019-11-01")
@@ -279,19 +313,28 @@ competencia <- as.Date("2019-11-01")
 # Calculando a idade em anos
 base_tratada$idade <- trunc(as.numeric(interval(base_tratada$data_nascimento, competencia) / years(1)))
 
-
-
-base_tratada$data_formacao <- as.Date(paste("01", base_tratada$data_formacao, sep = "/"), format = "%d/%m/%Y")
+base_tratada$data_formacao <- 
+  as.Date(paste("01", 
+                base_tratada$data_formacao, 
+                sep = "/"), format = "%d/%m/%Y")
 
 # Calculando o tempo de formação
 base_tratada$tempo_formacao <- trunc(as.numeric(interval(base_tratada$data_formacao, competencia) / years(1)))
+
 ```
 
 A seguir identificaremos os indíviduos que já atuavam nas cidades em que foram designados antes de iniciar o programa.
 
 ```{r}
-base_tratada <-base_tratada |> 
-  mutate(estava_na_cidade = ifelse(COMPETEN == as.Date("2019-04-01") & CODUFMUN == ibge_aloc, "Sim", "Não"))
+base_tratada <- 
+  base_tratada |> 
+  mutate(estava_na_cidade = 
+           ifelse(COMPETEN == 
+                    as.Date("2019-04-01") & 
+                    CODUFMUN == ibge_aloc, 
+                                   "Sim", 
+                                   "Não"))
+
 ```
 
 ### 1.2. Integração base de dados "secundários".
@@ -299,6 +342,7 @@ base_tratada <-base_tratada |>
 A segunda etapa consiste na agregação de variáveis de outras fontes de dados. Para isso, identificaremos os municipios e CNES presentes na base de dados.
 
 ```{r}
+
 lista_cnes <- base_tratada |> 
   distinct(CNES)
 
@@ -312,25 +356,31 @@ A partir de dados do Censo 2022 do IBGE identificaremos a população dos munici
 
 ```{r}
 #Carregando a base de contigente populacional
-pop_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+pop_mun <- 
+  read_excel("~/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
   mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
   mutate(populacao = as.numeric(populacao))
-
 
 base_tratada$CODUFMUN <- as.character(base_tratada$CODUFMUN)
 
 base_tratada <- base_tratada |> 
-  left_join(pop_mun, by = c("CODUFMUN" = "cod_mun")) |> 
+  left_join(pop_mun, 
+            by = c("CODUFMUN" = "cod_mun")) |> 
   select(-mun)
 
 #Classificando o porte dos municípios
 base_tratada <- base_tratada |> 
-  mutate(porte = case_when((populacao < 20000) ~ "PP-I",
-                           (populacao >= 20000 & populacao < 50000) ~ "PP-II",
-                           (populacao >= 50000 & populacao < 100000) ~ "MP",
-                           (populacao >= 100000 & populacao < 900000) ~ "GP",
-                           (populacao >= 900000) ~ "Metrópole",
-                           TRUE ~ "Outros casos"))
+  mutate(porte = 
+           case_when((populacao < 20000) ~ "PP-I",
+                     (populacao >= 20000 & 
+                      populacao < 50000) ~ "PP-II",
+                     (populacao >= 50000 & 
+                      populacao < 100000) ~ "MP",
+                     (populacao >= 100000 & 
+                      populacao < 900000) ~ "GP",
+                     (populacao >= 900000) ~ "Metrópole",
+                      TRUE ~ "Outros casos"))
+
 ```
 
 #### 1.2.2. Cobertura de plano de saúde.
@@ -691,9 +741,13 @@ pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_mais
   mutate(ano = as.numeric(ano)) |> 
   mutate(cod_ibge = substring(cod_ibge,1,6))
 
-base_tratada <- base_tratada |> 
-  left_join(pop_ocupada_mun, by = c("CODUFMUN" = "cod_ibge", "ano_competencia" = "ano")) |> 
+base_tratada <- 
+  base_tratada |> 
+  left_join(pop_ocupada_mun, 
+            by = c("CODUFMUN" = "cod_ibge", 
+                   "ano_competencia" = "ano")) |> 
   mutate(tx_pop_ocupada = pop_ocupada/populacao)
+
 ```
 
 ### 2. Tratamento de dados.
@@ -726,7 +780,8 @@ cpf_validos <- base_tratada |>
   group_by(CPF_PROF) |> 
   slice_min(order_by = COMPETEN, n = 1) |> 
   ungroup() |> 
-  filter(COMPETEN >= as.Date("2019-06-01"), COMPETEN <= as.Date("2019-11-01")) |> 
+  filter(COMPETEN >= as.Date("2019-06-01"), 
+         COMPETEN <= as.Date("2019-11-01")) |> 
   distinct(CPF_PROF)
 
 #Filtrando a base apenas com os médicos ingressantes

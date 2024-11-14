@@ -1,6 +1,0 @@
-"0","cns_inscricao2016 <- read_excel(""C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/edital_maismedicos_2016_cns.xlsx"") |>"
-"0","  rename(cns = resultado) |> "
-"0","  rename(municipio_destino = IBGE) |> "
-"0","  rename(uf_destino = UF) |> "
-"0","  mutate(cns = as.numeric(cns)) %>% "
-"0","  mutate(sexo = get_gender(cns_inscricao2016$nome))"

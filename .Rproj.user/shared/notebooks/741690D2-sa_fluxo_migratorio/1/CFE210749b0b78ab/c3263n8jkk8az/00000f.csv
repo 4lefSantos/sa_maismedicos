@@ -1,4 +1,0 @@
-"0","base_final <- base_final[!duplicated(base_final),]
-"
-"2","Erro: objeto 'base_final' não encontrado
-"

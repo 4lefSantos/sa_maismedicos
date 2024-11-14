@@ -1,6 +1,0 @@
-"0",""
-"0","lista_cpf <- CNES_cns |> "
-"0","  filter(COMPETEN >= 201901) |> "
-"0","  mutate(CNS_PROF = as.character(CNS_PROF)) |> "
-"0","  select(CPF_PROF, CNS_PROF, NOMEPROF) |> "
-"0","  distinct(CPF_PROF)"

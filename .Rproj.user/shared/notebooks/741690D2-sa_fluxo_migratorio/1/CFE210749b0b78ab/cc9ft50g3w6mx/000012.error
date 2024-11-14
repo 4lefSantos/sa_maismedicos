@@ -1,1 +1,0 @@
-{"frames":[{"func":"distinct(select(CNS_PROF))","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0},{"func":"select(CNS_PROF)","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0}],"message":"Erro: objeto 'CNS_PROF' não encontrado\n"}

@@ -1,2 +1,0 @@
-"0","base_tratada <- base_tratada |> "
-"0","  left_join(cobertura_saude, by = c(""CODUFMUN"" = ""cod_ibge""))"

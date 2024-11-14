@@ -1,4 +1,0 @@
-"0",""
-"0","CNES_cns <- read_csv(""01_dados/Editais/2019/edital_11_2019_datalake_CNS.csv"")"
-"2","Erro: '01_dados/Editais/2019/edital_11_2019_datalake_CNS.csv' does not exist in current working directory ('C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/02_script').
-"
