@@ -42,6 +42,7 @@ O edital não é taxativo em proibir outros vínculos profissionais, desde que s
 Abaixo os pacotes que serão necessários.
 
 ```{r}
+#|warning: FALSE
 
 library(tidyverse)
 library(readxl)
@@ -264,34 +265,60 @@ base_tratada <- CNES_cpf |>
 
 ```
 
-O próximo passo é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que identifica se o médico está na cidade no qual foi designado e se está alocado em uma unidade de atenção básica.
+O próximo passo é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que busca atender alguns critérios:
 
-Com essa variável verificaremos qual foi a primeira competência em que essas condições foram satisfeitas.. Observa-se que entre junho e novembro de 2019 há um número considerável de médicos migrando para as cidades de designação.
+1.  identifica se o médico está na cidade no qual foi designado;
+
+2.   está alocado em uma unidade de atenção básica;
+
+Esse tratamento foi especialmente importante, pois as vezes o profissional chegou a passar no programa, mas não assumiu.
+
+Com essa variável verificaremos qual foi a primeira competência em que essas condições foram satisfeitas. Observa-se que entre junho e novembro de 2019 há um número considerável de médicos migrando para as cidades de designação.
 
 A partir dessa identificação, filtraremos a base apenas com esses médicos.
 
 ```{r}
-#Convertendo competência para formato data
+
+# Convertendo competência para formato data
+
 base_tratada$COMPETEN <- 
   as.Date(paste0(base_tratada$COMPETEN, "01"), 
           format = "%Y%m%d")
 
-# Variável auxiliar pmmb
-base_tratada <- base_tratada |> 
-  filter(COMPETEN >= as.Date("2019-01-01")) |> 
-  mutate(pmmb = ifelse(CODUFMUN == ibge_aloc & TP_UNID == "02", "Sim", "Não"))
+# metodo para identificar quem foi selecionado e de fato foi para o programa 
 
-# Identificando a primeira competência de pmmb
-compet_inicio <- base_tratada |> 
-  filter(pmmb == "Sim") |> 
+temp <- 
+  base_tratada |> 
+    mutate(aps = if_else((TP_UNID == "02" |
+                         TP_UNID == "01" |
+                         TP_UNID == "32" |
+                         TP_UNID == "71" |
+                         TP_UNID == "72" |
+                         TP_UNID == "74"), "APS", "Outros")) |> 
+  mutate(ano = year(COMPETEN)) |> 
+  mutate(assumiu_programa = 
+           if_else(ano == 2019 &
+                   aps == 'APS' &
+                   CODUFMUN == ibge_aloc, 
+                   "Foi alocado", "Não foi alocado")) |> 
+  filter(assumiu_programa == "Foi alocado") |> 
+  group_by(NOMEPROF, CPF_PROF, CNS_PROF) |> 
+  slice_min(COMPETEN)
+
+# Identificando a primeira competência daquele profissional no pmmb
+
+compet_inicio <- 
+  temp |> 
+  filter(assumiu_programa == "Sim") |> 
   group_by(CPF_PROF) |> 
-  slice_min(order_by = COMPETEN, n = 1) |> 
-  ungroup() |> 
-  count(COMPETEN)
+  slice_min(order_by = COMPETEN, n = 1) #|> 
+ # ungroup() |> 
+ # count(COMPETEN)
 
 #Identificando os médicos que entraram entre junho e novembro
-cpf_validos <- base_tratada |> 
-  filter(pmmb == "Sim") |> 
+cpf_validos <- 
+  base_tratada |> 
+  filter(assumiu_programa == "Sim") |> 
   group_by(CPF_PROF) |> 
   slice_min(order_by = COMPETEN, n = 1) |> 
   ungroup() |> 
@@ -300,7 +327,8 @@ cpf_validos <- base_tratada |>
   distinct(CPF_PROF)
 
 #Filtrando a base apenas com os médicos ingressantes
-base_tratada <- base_tratada |> 
+base_tratada2 <- 
+  base_tratada |> 
   filter(CPF_PROF %in% cpf_validos$CPF_PROF)
 ```
 
@@ -308,12 +336,14 @@ A seguir, é criado a variável que mede o tempo em meses do tempo de permanênc
 
 ```{r}
 
-base_tratada <- base_tratada %>%
-  group_by(CPF_PROF) %>%
-  mutate(
-    meses_no_programa = interval(min(COMPETEN[pmmb == "Sim"]), max(COMPETEN[pmmb == "Sim"])) %/% months(1)
-  ) %>%
-  ungroup()
+base_tratada2 <- 
+    base_tratada2 |>
+      group_by(CPF_PROF) |>
+      mutate(
+        meses_no_programa = 
+          interval(min(COMPETEN[pmmb == "Sim"]), 
+                   max(COMPETEN[pmmb == "Sim"])) %/% months(1)) |>
+      ungroup()
 ```
 
 Admitindo novembro de 2019 como a competência que finaliza o inicio do programa, calcularemos a idade dos médicos e o seu tempo de formação.
@@ -335,7 +365,7 @@ base_tratada$data_formacao <-
 base_tratada$tempo_formacao <- trunc(as.numeric(interval(base_tratada$data_formacao, competencia) / years(1)))
 ```
 
-A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o *left join* utilizando essa variável.
+A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o left join utilizando essa variável.
 
 ```{r}
 
@@ -372,10 +402,12 @@ A segunda etapa consiste na agregação de variáveis de outras fontes de dados.
 
 ```{r}
 
-lista_cnes <- base_tratada |> 
+lista_cnes <- 
+  base_tratada |> 
   distinct(CNES)
 
-lista_municipios <- base_tratada |> 
+lista_municipios <- 
+  base_tratada |> 
   distinct(CODUFMUN)
 ```
 
