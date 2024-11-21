@@ -4,6 +4,8 @@ format: html
 editor: visual
 ---
 
+
+
 # Analysis: Programa Mais Médicos para o Brasil (pmmb)
 
 O objetivo do presente trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
@@ -41,6 +43,8 @@ O edital não é taxativo em proibir outros vínculos profissionais, desde que s
 
 Abaixo os pacotes que serão necessários.
 
+
+
 ```{r}
 #|warning: FALSE
 
@@ -61,6 +65,8 @@ library(plm)
 
 ```
 
+
+
 ## 1. Montagem da base de dados.
 
 ## 1.1. Tratamento de dados do Mais Médicos
@@ -74,6 +80,8 @@ Após a transformação em planilha dos resultados do edital e a identificação
 Para identificar o sexo, utilizamos a função `get_gender()` a partir dos nomes. No entanto, não foi possível a identificação em 144 profissionais. Isso ocorre, pois são nomes que podem ser assumidos por ambos os sexos.
 
 Restando o número de 2043 médicos.
+
+
 
 ```{r}
 
@@ -100,6 +108,8 @@ cns_inscricao <-
   filter(!is.na(sexo))
 
 ```
+
+
 
 Com base nesse resultado final, extraímos todos os CNS em um vetor para executar uma consulta no datalake, a fim de identificar os respectivos CPFs. Cabe mencionar que estes CPFs são criptografados, mas que podem ser utilizados como chave de identificação individualizada.
 
@@ -129,6 +139,8 @@ FROM Dados.cnes.PF a
         ON a.CODUFMUN = CAST(b.cod_municipio AS CHARACTER)
 WHERE CNS_PROF IN (lista)
 ```
+
+
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
@@ -170,6 +182,8 @@ lista_cpf <- CNES_cns |>
   distinct(CPF_PROF)
 ```
 
+
+
 Observa-se que a lista de CPF's retornou apenas 2034 observações. Esse número reduzido é devido a médicos duplicados em razão de registros com letras do nomes trocadas. Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
 Observação: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
@@ -199,6 +213,8 @@ WHERE CPF_PROF IN (lista)
 ORDER BY 
     COMPETEN
 ```
+
+
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
@@ -231,6 +247,8 @@ CNES_cpf <- sqlQuery(channel,
                      as.is = TRUE)
 ```
 
+
+
 O próximo passo será unir as duas bases:
 
 1\) a de inscrição, pois estas trazem dados sobre o inscrito (ex.: local onde foi alocado, ano de formação)
@@ -238,6 +256,8 @@ O próximo passo será unir as duas bases:
 2\) e a base do CNES-PF com o acompanhamento dos indivíduos. os resultados gerados pela consulta.
 
 No entanto, como a base de inscrição não possui a variável CPF, primeiro será necessário adicioná-la a essa base para, em seguida, realizar um *left_join* com a base CNES_cpf.
+
+
 
 ```{r}
 
@@ -255,7 +275,11 @@ cns_inscricao <-
 
 ```
 
+
+
 Agora adicionada a coluna de CPF na base cns_inscricao, faremos um left join entre ela e a base CNES_cns.
+
+
 
 ```{r}
 
@@ -264,6 +288,8 @@ base_tratada <- CNES_cpf |>
                   by = c("CPF_PROF" = "CPF_PROF"))
 
 ```
+
+
 
 O próximo passo é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que busca atender alguns critérios:
 
@@ -276,6 +302,8 @@ Esse tratamento foi especialmente importante, pois as vezes o profissional chego
 Com essa variável verificaremos qual foi a primeira competência em que essas condições foram satisfeitas. Observa-se que entre junho e novembro de 2019 há um número considerável de médicos migrando para as cidades de designação.
 
 A partir dessa identificação, filtraremos a base apenas com esses médicos.
+
+
 
 ```{r}
 
@@ -318,19 +346,23 @@ base_tratada2 <-
                       horaoutr) |> 
     select(ano, competen, codufmun, ibge_aloc, 
            municipio_destino, uf_destino, 
-           cnes, tp_unid, fantasia, nomeprof, cns_prof, 
+           cnes, fantasia, nomeprof, cns_prof, 
            cpf_prof, data_nascimento, 
            data_formacao, participou_pmmb, 
            sexo, ch_total) |>
-    filter(competen >= '2019-01-01')
+    filter(competen > '2019-05-01')
 
 ```
+
+
 
 ## 1.2. Atributos a nível indivíduo
 
 ### 1.2.1 Atuação prévia
 
 Vamos acessar para ver se aquele indivíduo atuou na cidade onde foi destinado em anos anteriores.
+
+
 
 ```{r}
 
@@ -349,7 +381,11 @@ atuacao <-
 
 ```
 
+
+
 Depois de preparar a base, vamos juntar à base original.
+
+
 
 ```{r}
 
@@ -366,9 +402,13 @@ base_tratada3$anos_atuacao[is.na(base_tratada3$anos_atuacao)] <- 0
 
 ```
 
+
+
 ### 1.2.2 Quantidade média de vínculos enquanto está na mesma cidade
 
 Para isso, vamos verificar, desde de meados de 2019, quantos vínculos o indivíduos tinha por competência no mesmo município onde ele foi alocado.
+
+
 
 ```{r}
 
@@ -386,7 +426,11 @@ vinculos_cidade <-
 
 ```
 
+
+
 Juntando com a base tratada
+
+
 
 ```{r}
 
@@ -397,11 +441,16 @@ base_tratada4 <-
 
 ```
 
+
+
 ### 1.2.3 Quantidade de meses que fica no município onde foi designado
 
 A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação. Esta uma das variáveis de desfecho.
 
+
+
 ```{r}
+
 
 meses_trabalho <- 
   base_tratada2 |>
@@ -416,7 +465,11 @@ meses_trabalho <-
 
 ```
 
+
+
 Juntando com a base onde estamos fazendo os tratamentos.
+
+
 
 ```{r}
 
@@ -428,9 +481,13 @@ base_tratada4 <-
 
 ```
 
+
+
 ### 1.2.4 Churn
 
 Esta variável também é de desfecho e ela tem como objetivo verificar se a pessoa saiu do município onde foi designada cerca de 4,5 anos após o início do programa. Lembrando que o programa tem duração de 48 meses.
+
+
 
 ```{r}
 
@@ -451,7 +508,11 @@ churn <-
 
 ```
 
+
+
 Juntando à base original.
+
+
 
 ```{r}
 
@@ -465,9 +526,13 @@ base_tratada5$churn[is.na(base_tratada5$churn)] <- "migrou"
 
 ```
 
+
+
 ### 1.2.5 Idade ao entrar no programa
 
 O objetivo desta análise é verificar a idade do indivíduo na primeira competência que ele começa a trabalhar no programa.
+
+
 
 ```{r}
 
@@ -489,7 +554,11 @@ idade <-
 
 ```
 
+
+
 Juntando com a base.
+
+
 
 ```{r}
 
@@ -500,9 +569,13 @@ base_tratada6 <-
   
 ```
 
+
+
 ### 1.2.6 Renovação
 
 A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Infelizmente, como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o left join utilizando essa variável.
+
+
 
 ```{r}
 
@@ -519,60 +592,19 @@ base_tratada7 <-
 
 ```
 
-### 1.2.7. Tempo formado 
 
-O próximo passo é verificar quanto tempo a pessoa já está formada.
-
-```{r}
-
-anos_formado <- 
-  base_tratada2 |>
-  mutate(
-    data_formacao = dmy(paste0("01/", data_formacao)), 
-    competen = ymd(competen)) |>
-  group_by(cpf_prof) |>
-  slice_min(order_by = competen, with_ties = FALSE) |>
-  ungroup() |>
-  mutate(anos_formacao = 
-           as.numeric(difftime(competen, 
-                               data_formacao,
-                               units = "days")) / 365.25) |> 
-  mutate(anos_formacao = if_else(anos_formacao < 0, 
-                                 0,
-                                 anos_formacao)) |> 
-  select(cpf_prof, anos_formacao)
-
-```
-
-Juntando com a base anterior.
-
-```{r}
-
-base_tratada8 <- 
-  base_tratada7 |> 
-  left_join(anos_formado, 
-            by = c("cpf_prof"))
-
-```
 
 Por fim, feitos todos os tratamentos, vamos manter apenas uma observação por indivíduo.
 
+
+
 ```{r}
 
-base_tratada9 <- 
-  base_tratada8 |> 
-    filter(tp_unid == "01"|
-           tp_unid == "02"|
-           tp_unid == "32"|
-           tp_unid == "71"|
-           tp_unid == "72"|
-           tp_unid == "74") |> 
-  group_by(cpf_prof) |>
-  slice_min(order_by = competen, 
-            with_ties = FALSE) 
 
 
 ```
+
+
 
 ## 1.3. Atributos a nível estabelecimento 
 
@@ -613,6 +645,8 @@ GROUP BY
 
 Baixando dados de leitos.
 
+
+
 ```{r}
 # codigo para acessar dados de datalake proprio 
 
@@ -642,7 +676,11 @@ leitos <- sqlQuery(channel, query,
                      as.is = TRUE)
 ```
 
+
+
 Acessando dados de leitos das unidades de APS as quais os indivíduos foram alocados.
+
+
 
 ```{r}
 
@@ -659,6 +697,8 @@ base_tratada <- base_tratada |>
   rename(qt_leitos_cnes = qt_total) |> 
   mutate(qt_leitos_cnes = as.numeric(qt_leitos_cnes))
 ```
+
+
 
 ### 1.3.2 Número de profissionais das unidades 
 
@@ -727,6 +767,8 @@ GROUP BY
 
 asfd
 
+
+
 ```{r}
 
 # codigo para acessar dados de datalake proprio 
@@ -758,7 +800,11 @@ equipe_saude <- sqlQuery(channel,
 
 ```
 
+
+
 asdf
+
+
 
 ```{r}
 
@@ -780,31 +826,22 @@ equipe_saude2 <-
   
 equipe_saude3 <- 
     equipe_saude2 |> 
-    filter(CNES %in% base_tratada8$cnes) |> 
-    group_by(CNES, categoria) |> 
-    summarise(FTE40 = mean(FTE40)) |> 
-    ungroup() |> 
+    filter(CNES %in% temp$CNES) |> 
+    group_by(CNES, categoria)
     pivot_wider(names_from = categoria, 
                 values_from = FTE40) |> 
-    mutate(across(2:5, ~ ifelse(is.na(.), 0, .))) 
+    mutate(across(3:6, ~ ifelse(is.na(.), 0, .))) |> 
+    mutate(ANO = as.numeric(ANO)) 
 
 ```
 
-base
 
-```{r}
-
-base_tratada10 <- 
-  base_tratada9 |> 
-    left_join(equipe_saude3,
-              by = c("cnes"="CNES"))
-  
-  
-```
 
 ## 1.4. Atributos a nível município 
 
 A segunda etapa consiste na agregação de variáveis de outras fontes de dados. Para isso, identificaremos os municipios e CNES presentes na base de dados.
+
+
 
 ```{r}
 
@@ -817,9 +854,13 @@ lista_municipios <-
   distinct(CODUFMUN)
 ```
 
+
+
 #### 1.2.1. População e porte.
 
 A partir de dados do Censo 2022 do IBGE identificaremos a população dos municipios, e classificaremos por porte de acordo com a população.
+
+
 
 ```{r}
 #Carregando a base de contigente populacional
@@ -850,6 +891,8 @@ base_tratada <- base_tratada |>
 
 ```
 
+
+
 #### 1.2.2. Cobertura de plano de saúde.
 
 A partir dos dados da base XXXXX, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
@@ -858,6 +901,8 @@ A partir dos dados da base XXXXX, agregaremos na nossa base a taxa de cobertura 
 
 SELECT cod_ibge, taxa FROM "Open Analytics Layer".Infraestrutura."Cobertura Plano de Saúde"
 ```
+
+
 
 ```{r}
 
@@ -900,6 +945,8 @@ base_tratada <- base_tratada |>
   left_join(cobertura_saude, by = c("CODUFMUN" = "cod_ibge"))
 ```
 
+
+
 #### 1.2.3. Número vagas de medicina.
 
 A seguir, adicionaremos a variável número de vagas de medicina por município da base de dados XXXXXX, e calcularemos o número de vagas por mil habitantes.
@@ -909,6 +956,8 @@ SELECT cod_ibge, SUM(vagas) AS vagas_medicina FROM "Open Analytics Layer"."Educa
 WHERE curso = 'Medicina'
 GROUP BY(cod_ibge)
 ```
+
+
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
@@ -951,6 +1000,8 @@ base_tratada <- base_tratada |>
   mutate(vagas_medicina_milhab = ifelse(is.na(vagas_medicina_milhab), 0, vagas_medicina_milhab))
 ```
 
+
+
 #### 1.2.4. PIB per capita.
 
 A seguir agregaremos a variável de PIB per capita, com dados entre 2010 e 2021.
@@ -962,6 +1013,8 @@ SELECT codigo_municipio,
        
 FROM Dados.pib."pib_2010_2021.parquet"
 ```
+
+
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
@@ -1002,6 +1055,8 @@ pib_percapita <- pib_percapita |>
 base_tratada <- base_tratada |> 
   left_join(pib_percapita, by = c("CODUFMUN" = "codigo_municipio", "ano_competencia" = "ano"))
 ```
+
+
 
 #### 1.2.6. Profissionais de saúde por estabelecimento de saúde
 
@@ -1063,6 +1118,8 @@ GROUP BY
         categoria
 ```
 
+
+
 ```{r}
 
 # codigo para acessar dados de datalake proprio 
@@ -1115,11 +1172,15 @@ base_tratada <- base_tratada |>
 
 ```
 
+
+
 #### 1.2.6. População ocupada.
 
 Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
 
 E calculamos o percentual da população ocupada com os dados do Censo 2022.
+
+
 
 ```{r}
 pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
@@ -1142,4 +1203,7 @@ base_tratada <-
 
 ```
 
+
+
 ### 
+
