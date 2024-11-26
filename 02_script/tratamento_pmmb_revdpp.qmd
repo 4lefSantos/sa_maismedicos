@@ -170,7 +170,7 @@ lista_cpf <- CNES_cns |>
   distinct(CPF_PROF)
 ```
 
-Observa-se que a lista de CPF's retornou apenas 2034 observações. Esse número reduzido é devido a médicos duplicados em razão de registros com letras do nomes trocadas. Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
+Observa-se que a lista de CPF's retornou apenas 2034 observações. Esse número reduzido é devido a médicos duplicados em razão de registros com letras de nomes trocadas. Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
 Observação: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
 
@@ -235,7 +235,7 @@ O próximo passo será unir as duas bases:
 
 1\) a de inscrição, pois estas trazem dados sobre o inscrito (ex.: local onde foi alocado, ano de formação)
 
-2\) e a base do CNES-PF com o acompanhamento dos indivíduos. os resultados gerados pela consulta.
+2\) e a base do CNES-PF com o acompanhamento dos indivíduos. Os resultados gerados pela consulta.
 
 No entanto, como a base de inscrição não possui a variável CPF, primeiro será necessário adicioná-la a essa base para, em seguida, realizar um *left_join* com a base CNES_cpf.
 
@@ -265,7 +265,7 @@ base_tratada <- CNES_cpf |>
 
 ```
 
-O próximo passo é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado através uma variável auxiliar pmmb que busca atender alguns critérios:
+O próximo passo é identificar os médicos que iniciaram no programa. Esse mapeamento será realizado com o atendimento de alguns critérios:
 
 1.  identifica se o médico está na cidade no qual foi designado;
 
@@ -301,7 +301,8 @@ temp <-
            if_else(ano == 2019 &
                    aps == 'APS' &
                    CODUFMUN == ibge_aloc, 
-                   "Foi alocado", "Não foi alocado")) |> 
+                   "Foi alocado", 
+                   "Não foi alocado")) |> 
   filter(assumiu_programa == "Foi alocado") |> 
   group_by(NOMEPROF, CPF_PROF, CNS_PROF) |> 
   slice_min(COMPETEN)
@@ -420,8 +421,8 @@ Juntando com a base onde estamos fazendo os tratamentos.
 
 ```{r}
 
-base_tratada4 <- 
-  base_tratada3 |> 
+base_tratada5 <- 
+  base_tratada4 |> 
   left_join(meses_trabalho, 
             by = c("cpf_prof"))
 
@@ -519,7 +520,7 @@ base_tratada7 <-
 
 ```
 
-### 1.2.7. Tempo formado 
+### 1.2.7. Tempo formado
 
 O próximo passo é verificar quanto tempo a pessoa já está formada.
 
@@ -574,9 +575,9 @@ base_tratada9 <-
 
 ```
 
-## 1.3. Atributos a nível estabelecimento 
+## 1.3. Atributos a nível estabelecimento
 
-### 1.3.1 Número de leitos das unidades 
+### 1.3.1 Número de leitos das unidades
 
 Este passo consiste em identificar qual o número de leitos nas unidades de APS as quais o indivíduo foi alocado.
 
@@ -634,7 +635,7 @@ channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
                          dremio_uid, 
                          dremio_pwd))
 
-query <- 'SELECT * FROM "@alef_santos"."pmmb_leitos"'
+query <- 'SELECT * FROM "@alef_santos"."pmmb_leitos_v2"'
 
 
 
@@ -648,21 +649,20 @@ Acessando dados de leitos das unidades de APS as quais os indivíduos foram aloc
 
 leitos_unidades <- 
   leitos |> 
-  select(cnes, ano, qt_total) |> 
-  mutate(ano = as.numeric(ano)) |> 
-  filter(cnes %in% temp$CNES)
+  mutate(Ano = as.numeric(Ano)) |> 
+  filter(CNES %in% temp$CNES)
 
-base_tratada <- base_tratada |>
+leitos$Ano <- as.numeric(leitos$Ano)
+
+base_tratada10 <- base_tratada9 |>
   left_join(leitos, 
-            by = c("CNES" = "cnes", 
-                   "ano_competencia" = "ano")) |> 
-  rename(qt_leitos_cnes = qt_total) |> 
-  mutate(qt_leitos_cnes = as.numeric(qt_leitos_cnes))
+            by = c("cnes" = "CNES", 
+                   "ano" = "Ano"))
 ```
 
-### 1.3.2 Número de profissionais das unidades 
+### 1.3.2 Número de profissionais das unidades
 
-Este passo consiste em identificar qual o número de leitos nas unidades de APS as quais o indivíduo foi alocado.
+Este passo consiste em identificar qual o número de profissionais nas unidades de APS as quais o indivíduo foi alocado.
 
 ``` sql
 WITH ch_cnes_selecionados 
@@ -780,7 +780,7 @@ equipe_saude2 <-
   
 equipe_saude3 <- 
     equipe_saude2 |> 
-    filter(CNES %in% base_tratada8$cnes) |> 
+    filter(CNES %in% base_tratada10$cnes) |> 
     group_by(CNES, categoria) |> 
     summarise(FTE40 = mean(FTE40)) |> 
     ungroup() |> 
@@ -794,30 +794,96 @@ base
 
 ```{r}
 
-base_tratada10 <- 
-  base_tratada9 |> 
+base_tratada11 <- 
+  base_tratada10 |> 
     left_join(equipe_saude3,
               by = c("cnes"="CNES"))
   
   
 ```
 
-## 1.4. Atributos a nível município 
+### 1.3.2 Número de equipamentos das unidade
 
-A segunda etapa consiste na agregação de variáveis de outras fontes de dados. Para isso, identificaremos os municipios e CNES presentes na base de dados.
+``` sql
+WITH 
+      tratamento_inicial
+  AS(
+      SELECT 
+          CONCAT(a.TIPEQUIP, a.CODEQUIP) AS id_equipamento,
+          a.CNES, 
+          a.CODUFMUN,
+          a.TPGESTAO, 
+          a.TP_UNID, 
+          CAST(a.QT_USO AS INT) AS QT_USO, 
+          a.COMPETEN, 
+          a.uf,
+          b.no_grupo, 
+          b.no_equip
+      FROM Dados.CNES.EQ a
+          LEFT JOIN Dados.cnes."tp_equip.parquet" b
+          ON id_equipamento = CAST(id_equip AS CHARACTER)
+      WHERE SUBSTR(COMPETEN, 5, 2) = '01' AND
+            CAST(SUBSTR(COMPETEN, 1, 4) AS INTEGER) >= 2019
+  )
+  
+  SELECT CNES,
+         ID_EQUIPAMENTO, 
+         NO_EQUIP, 
+         NO_GRUPO,
+         AVG(QT_USO) AS QT_EQUIPAMENTO_USO
+  FROM tratamento_inicial
+  GROUP BY CNES,
+        ID_EQUIPAMENTO, 
+        NO_EQUIP,
+        NO_GRUPO
+  ORDER BY qt_equipamento_uso DESC
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_equipamentos"'
+
+equipamentos <- sqlQuery(channel, 
+                         query,
+                         as.is = TRUE)
+```
 
 ```{r}
 
-lista_cnes <- 
-  base_tratada |> 
-  distinct(CNES)
+base_tratada12 <- base_tratada11 |> 
+  left_join(equipamentos, by = c("cnes" = "CNES"))
 
-lista_municipios <- 
-  base_tratada |> 
-  distinct(CODUFMUN)
+teste <- equipamentos |> 
+  filter(is.na(NO_GRUPO)) |> 
+  distinct(ID_EQUIPAMENTO)
 ```
 
-#### 1.2.1. População e porte.
+## 1.4. Atributos a nível município
+
+Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Divideremos esses atributos em grupos.
+
+##### 1.4.1 Indicadores econômicos
+
+###### 1.4.1.1 População e porte
 
 A partir de dados do Censo 2022 do IBGE identificaremos a população dos municipios, e classificaremos por porte de acordo com a população.
 
@@ -828,15 +894,10 @@ pop_mun <-
   mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
   mutate(populacao = as.numeric(populacao))
 
-base_tratada$CODUFMUN <- as.character(base_tratada$CODUFMUN)
 
-base_tratada <- base_tratada |> 
-  left_join(pop_mun, 
-            by = c("CODUFMUN" = "cod_mun")) |> 
-  select(-mun)
-
-#Classificando o porte dos municípios
-base_tratada <- base_tratada |> 
+base_tratada12 <- base_tratada11 |> 
+  left_join(pop_mun, by = c("codufmun" = "cod_mun")) |> 
+  select(-mun) |> 
   mutate(porte = 
            case_when((populacao < 20000) ~ "PP-I",
                      (populacao >= 20000 & 
@@ -850,7 +911,86 @@ base_tratada <- base_tratada |>
 
 ```
 
-#### 1.2.2. Cobertura de plano de saúde.
+###### 1.4.1.2 PIB per capita
+
+``` sql
+SELECT codigo_municipio, 
+       ano, 
+       produto_interno_bruto_capital_precos_correntes_1 AS pib_percapita
+       
+FROM Dados.pib."pib_2010_2021.parquet"
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
+                                     HOST=%s;
+                                     PORT=%s;
+                                     UID=%s;
+                                     PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmmb_pibpercapita"'
+
+
+
+pib_percapita <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+
+pib_percapita <- pib_percapita |> 
+  mutate(pib_percapita = as.numeric(pib_percapita)) |> 
+  mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> 
+  mutate(ano = as.numeric(ano))
+
+base_tratada13 <- base_tratada12 |> 
+  left_join(pib_percapita, by = c("codufmun" = "codigo_municipio", "ano" = "ano"))
+```
+
+###### 1.4.1.3 População ocupada
+
+Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
+
+E calculamos o percentual da população ocupada com os dados do Censo 2022.
+
+```{r}
+pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
+  select(-municipio) |> 
+  mutate(across(-cod_ibge, as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para "character"
+  pivot_longer(
+    cols = -cod_ibge,
+    names_to = "ano",
+    values_to = "pop_ocupada"
+  ) |> 
+  mutate(ano = as.numeric(ano)) |> 
+  mutate(cod_ibge = substring(cod_ibge,1,6))
+
+base_tratada14 <- 
+  base_tratada13 |> 
+  left_join(pop_ocupada_mun, 
+            by = c("codufmun" = "cod_ibge", 
+                   "ano" = "ano")) |> 
+  mutate(tx_pop_ocupada = pop_ocupada/populacao) |> 
+  select(-pop_ocupada)
+```
+
+##### 1.4.2 Indicadores de saúde
+
+###### 1.4.2.1 Cobertura de plano de saúde
 
 A partir dos dados da base XXXXX, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
 
@@ -896,11 +1036,11 @@ cobertura_saude <- cobertura_saude |>
   rename(cobertura_saude = taxa) |> 
   mutate(cobertura_saude = as.numeric(cobertura_saude))
 
-base_tratada <- base_tratada |> 
-  left_join(cobertura_saude, by = c("CODUFMUN" = "cod_ibge"))
+base_tratada15 <- base_tratada14 |> 
+  left_join(cobertura_saude, by = c("codufmun" = "cod_ibge"))
 ```
 
-#### 1.2.3. Número vagas de medicina.
+###### 1.4.2.2 Número vagas de medicina
 
 A seguir, adicionaremos a variável número de vagas de medicina por município da base de dados XXXXXX, e calcularemos o número de vagas por mil habitantes.
 
@@ -941,205 +1081,30 @@ vagas_medicina <- sqlQuery(channel, query,
 
 ```{r}
 
-base_tratada <- base_tratada |> 
-  left_join(vagas_medicina, by = c("CODUFMUN" = "cod_ibge"))
-
-base_tratada <- base_tratada |>
+base_tratada16 <- base_tratada15 |> 
+  left_join(vagas_medicina, by = c("codufmun" = "cod_ibge")) |> 
   mutate(vagas_medicina = as.numeric(vagas_medicina)) |> 
   mutate(vagas_medicina_milhab = (vagas_medicina/populacao)*1000) |> 
   mutate(vagas_medicina = ifelse(is.na(vagas_medicina), 0, vagas_medicina)) |> 
-  mutate(vagas_medicina_milhab = ifelse(is.na(vagas_medicina_milhab), 0, vagas_medicina_milhab))
+  mutate(vagas_medicina_milhab = ifelse(is.na(vagas_medicina_milhab), 0, vagas_medicina_milhab)) |> 
+  select(-vagas_medicina)
 ```
 
-#### 1.2.4. PIB per capita.
+###### 1.4.2.3 Orçamento per capita para a saúde
 
-A seguir agregaremos a variável de PIB per capita, com dados entre 2010 e 2021.
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. E o cálculo realizado é: Gasto total em saúde ÷ População total do município.
 
-``` sql
-SELECT codigo_municipio, 
-       ano, 
-       produto_interno_bruto_capital_precos_correntes_1 AS pib_percapita
-       
-FROM Dados.pib."pib_2010_2021.parquet"
+```{r}
+orcamento_saude <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, orcamento_saude) |> 
+  mutate(id = substr(id, 1, 6))
+
+
+base_tratada17 <- base_tratada16 |> 
+  left_join(orcamento_saude, by = c("codufmun" = "id")) |> 
+  select(-Município)
 ```
 
 ```{r}
-# codigo para acessar dados de datalake proprio 
-
-dremio_host <- Sys.getenv("endereco")
-dremio_port <- Sys.getenv("port")
-dremio_uid <- Sys.getenv("uid")
-dremio_pwd <- Sys.getenv("datalake")
-
-
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
-                                     AUTHENTICATIONTYPE=Basic Authentication;
-                                     CONNECTIONTYPE=Direct", 
-                         dremio_host, 
-                         dremio_port, 
-                         dremio_uid, 
-                         dremio_pwd))
-
-query <- 'SELECT * FROM "@alef_santos"."pmmb_pibpercapita"'
-
-
-
-pib_percapita <- sqlQuery(channel, query, 
-                     as.is = TRUE)
+write_xlsx(base_tratada17, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
 ```
-
-```{r}
-base_tratada$ano_competencia <- year(base_tratada$COMPETEN)
-pib_percapita <- pib_percapita |> 
-  mutate(pib_percapita = as.numeric(pib_percapita)) |> 
-  mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> 
-  mutate(ano = as.numeric(ano))
-
-base_tratada <- base_tratada |> 
-  left_join(pib_percapita, by = c("CODUFMUN" = "codigo_municipio", "ano_competencia" = "ano"))
-```
-
-#### 1.2.6. Profissionais de saúde por estabelecimento de saúde
-
-``` sql
-WITH ch_cnes_selecionados 
-
-AS(
-    SELECT CNES,
-        CODUFMUN, 
-        PF.NOMEPROF,
-        PF.CPF_PROF,
-        CBO,
-        CASE 
-            WHEN substr(CBO, 1, 4) = '2235' THEN 'Enfermeiro' 
-            WHEN substr(CBO, 1, 4) = '3222' THEN 'Técnico ou Auxiliar de Enfermagem'
-            WHEN substr(CBO, 1, 4) = '2232' THEN 'Cirurgião Dentista'
-            WHEN CBO = '515105' THEN 'Agente Comunitário de Saúde'
-        END AS categoria,
-        substr(COMPETEN, 1, 4) AS ANO,
-        CAST(PF.HORAHOSP + PF.HORAOUTR + PF.HORA_AMB AS FLOAT) AS CH_TOTAL
-    FROM Dados.cnes.PF
-    WHERE 
-        substr(PF.COMPETEN, 5, 2) = '01' AND
-        substr(PF.COMPETEN, 1, 4) > 2018 AND 
-        (CBO = '515105' OR 
-        substr(PF.CBO, 1, 4) = '2235' OR 
-        substr(PF.CBO, 1, 4) = '2232' OR 
-        PF.CBO = '322205' OR
-        PF.CBO = '322210' OR
-        PF.CBO = '322215' OR
-        PF.CBO = '322220' OR
-        PF.CBO = '322245' OR
-        PF.CBO = '322230' OR
-        PF.CBO = '322235' OR
-        PF.CBO = '322250' ) AND 
-        CNES IN (lista)) 
-
-SELECT a.ANO, 
-       a.CNES, 
-       b.FANTASIA,
-       c.uf_sigla,
-       a.CODUFMUN,
-       c.municipio, 
-       a.categoria,   
-       SUM(CH_TOTAL) AS CH,
-       SUM(CH_TOTAL)/40 AS FTE40
-FROM ch_cnes_selecionados a
-    LEFT JOIN Dados.cnes.CADGER b
-        ON a.CNES = b.CNES
-    LEFT JOIN "Open Analytics Layer".Territorial."Hierarquia completa dos municípios" c
-        ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
-GROUP BY 
-        ANO,
-        CNES, 
-        fantasia,
-        uf_sigla,
-        CODUFMUN, 
-        municipio,
-        categoria
-```
-
-```{r}
-
-# codigo para acessar dados de datalake proprio 
-
-dremio_host <- Sys.getenv("endereco")
-dremio_port <- Sys.getenv("port")
-dremio_uid <- Sys.getenv("uid")
-dremio_pwd <- Sys.getenv("datalake")
-
-
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
-                                     AUTHENTICATIONTYPE=Basic Authentication;
-                                     CONNECTIONTYPE=Direct", 
-                         dremio_host, 
-                         dremio_port, 
-                         dremio_uid, 
-                         dremio_pwd))
-
-query <- 'SELECT * FROM "@alef_santos"."pmmb_equipe_cnes"'
-
-
-
-equipe_saude <- sqlQuery(channel, query, 
-                     as.is = TRUE)
-```
-
-```{r}
-equipe_saude <- equipe_saude |> 
-  select(CNES, ANO, categoria, FTE40) |> 
-  mutate(categoria = case_when(categoria == 	
-"Técnico ou Auxiliar de Enfermagem" ~ "tec_aux_enf",
-categoria == "Cirurgião Dentista" ~ "dentista",
-categoria == "Agente Comunitário de Saúde" ~ "agente_saude",
-categoria == "Enfermeiro" ~ "enfermeiro",
-TRUE ~ NA)) |> 
-  mutate(FTE40 = ifelse(is.na(FTE40), 0, FTE40))
-
-equipe_saude <- equipe_saude |> 
-  pivot_wider(names_from = categoria, values_from = FTE40) |> 
-  mutate(across(3:6, ~ ifelse(is.na(.), 0, .))) |> 
-  mutate(ANO = as.numeric(ANO))
-
-
-base_tratada <- base_tratada |> 
-  left_join(equipe_saude, by  = c("CNES" = "CNES", "ano_competencia" = "ANO"))
-
-```
-
-#### 1.2.6. População ocupada.
-
-Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
-
-E calculamos o percentual da população ocupada com os dados do Censo 2022.
-
-```{r}
-pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
-  select(-municipio) |> 
-  mutate(across(-cod_ibge, as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para "character"
-  pivot_longer(
-    cols = -cod_ibge,
-    names_to = "ano",
-    values_to = "pop_ocupada"
-  ) |> 
-  mutate(ano = as.numeric(ano)) |> 
-  mutate(cod_ibge = substring(cod_ibge,1,6))
-
-base_tratada <- 
-  base_tratada |> 
-  left_join(pop_ocupada_mun, 
-            by = c("CODUFMUN" = "cod_ibge", 
-                   "ano_competencia" = "ano")) |> 
-  mutate(tx_pop_ocupada = pop_ocupada/populacao)
-
-```
-
-### 
