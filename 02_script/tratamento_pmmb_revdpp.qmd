@@ -6,14 +6,14 @@ editor: visual
 
 # Analysis: Programa Mais Médicos para o Brasil (pmmb)
 
-O objetivo do presente trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
+O objetivo desse trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
 
 O programa prevê vigência de três anos e a seleção é estruturada em **duas fases**:
 
 1ª. Destinado a formados e revalidados em instituições brasileiras.\
 2ª. Destinação das vagas remanescentes para habilitados médicos no exterior (médico intercambista).
 
-O médico indica **quatro localidades em ordem de preferência**. A concorrência se dará entre os profissionais que marcaram o maior grau de preferência, isto é, entre os que marcaram como primeira opção, na ausência, entre os segunda opação e assim sucessivamente.
+O médico indica **quatro localidades em ordem de preferência**. A concorrência se dará entre os profissionais que marcaram o maior grau de preferência, isto é, entre os que marcaram como primeira opção, na ausência, entre os segunda opção e assim sucessivamente.
 
 Entre os **critérios de classificação** estão:
 
@@ -869,8 +869,7 @@ equipamentos <- sqlQuery(channel,
 
 ```{r}
 
-base_tratada12 <- base_tratada11 |> 
-  left_join(equipamentos, by = c("cnes" = "CNES"))
+
 
 teste <- equipamentos |> 
   filter(is.na(NO_GRUPO)) |> 
@@ -881,9 +880,9 @@ teste <- equipamentos |>
 
 Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Divideremos esses atributos em grupos.
 
-##### 1.4.1 Indicadores econômicos
+### 1.4.1 Indicadores econômicos
 
-###### 1.4.1.1 População e porte
+#### 1.4.1.1 População e porte
 
 A partir de dados do Censo 2022 do IBGE identificaremos a população dos municipios, e classificaremos por porte de acordo com a população.
 
@@ -911,7 +910,7 @@ base_tratada12 <- base_tratada11 |>
 
 ```
 
-###### 1.4.1.2 PIB per capita
+#### 1.4.1.2 PIB per capita
 
 ``` sql
 SELECT codigo_municipio, 
@@ -961,7 +960,7 @@ base_tratada13 <- base_tratada12 |>
   left_join(pib_percapita, by = c("codufmun" = "codigo_municipio", "ano" = "ano"))
 ```
 
-###### 1.4.1.3 População ocupada
+#### 1.4.1.3 População ocupada
 
 Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
 
@@ -988,9 +987,9 @@ base_tratada14 <-
   select(-pop_ocupada)
 ```
 
-##### 1.4.2 Indicadores de saúde
+### 1.4.2 Indicadores de saúde
 
-###### 1.4.2.1 Cobertura de plano de saúde
+#### 1.4.2.1 Cobertura de plano de saúde
 
 A partir dos dados da base XXXXX, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
 
@@ -1040,7 +1039,7 @@ base_tratada15 <- base_tratada14 |>
   left_join(cobertura_saude, by = c("codufmun" = "cod_ibge"))
 ```
 
-###### 1.4.2.2 Número vagas de medicina
+#### 1.4.2.2 Número vagas de medicina
 
 A seguir, adicionaremos a variável número de vagas de medicina por município da base de dados XXXXXX, e calcularemos o número de vagas por mil habitantes.
 
@@ -1090,7 +1089,7 @@ base_tratada16 <- base_tratada15 |>
   select(-vagas_medicina)
 ```
 
-###### 1.4.2.3 Orçamento per capita para a saúde
+#### 1.4.2.3 Orçamento per capita para a saúde
 
 Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. E o cálculo realizado é: Gasto total em saúde ÷ População total do município.
 
@@ -1105,6 +1104,135 @@ base_tratada17 <- base_tratada16 |>
   select(-Município)
 ```
 
+#### 1.4.2.4 População atendida com esgotamento sanitário
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o SNIS do ano de 2020. O método de cálculo é: População total atendida com esgotamento sanitário ÷ População total do município (x100).
+
 ```{r}
-write_xlsx(base_tratada17, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
+esgoto_sanitario <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, esgotamento_sanitario) |> 
+  mutate(id = substr(id, 1, 6))
+  
+base_tratada18 <- base_tratada17 |> 
+  left_join(esgoto_sanitario, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+### 1.4.3 Indicadores de segurança pública
+
+#### 1.4.3.1 Taxa de homicídio
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número total de mortes por homicídio ÷ População total (x100.000).
+
+```{r}
+tx_homicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, taxa_homicidio) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada19 <- base_tratada18 |> 
+  left_join(tx_homicidio, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+#### 1.4.3.2 Mortes por armas de fogo
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número de óbitos por armas de fogo ÷ População total do município (x100.000).
+
+```{r}
+armas_fogo <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, mortes_armasdefogo) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada20 <- base_tratada19 |> 
+  left_join(armas_fogo, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+#### 1.4.3.3 Taxa de feminicídio
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Mortalidade por causas externas de mulheres ÷ Total de mulheres (x100.000).
+
+```{r}
+taxa_feminicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, feminicidio) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada21 <- base_tratada20 |> 
+  left_join(taxa_feminicidio, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+### 1.4.4 Indicadores de educação
+
+#### 1.4.4.1 IDEB anos iniciais
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
+
+```{r}
+ideb_inicio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, ideb_anosiniciais) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada22 <- base_tratada21 |> 
+  left_join(ideb_inicio, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+#### 1.4.4.1 IDEB anos finais
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
+
+```{r}
+ideb_final <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, ideb_anosfinais) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada23 <- base_tratada22 |> 
+  left_join(ideb_final, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+### 1.4.5 Indicadores de infraestrutura
+
+#### 1.4.5.1 Investimento público em infraestrutura urbana por habitante
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o SICONFI e IBGE PIB MUNICIPAL de 2019. Método: Valor do investimento público em infraestrutura ÷ Número de habitantes.
+
+```{r}
+
+infraestrutura <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, investimento_infraestrutura) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada24 <- base_tratada23 |> 
+  left_join(infraestrutura, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+#### 1.4.5.2 Equipamentos esportivos municipais
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é a MUNIC de 2018. Método: Número total de equipamentos esportivos públicos ÷ População total do município (x100.000).
+
+```{r}
+equip_esportivos <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, equipamentos_esportivos) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada25 <- base_tratada24 |> 
+  left_join(equip_esportivos, by = c("codufmun" = "id")) |> 
+  select(-Município)
+```
+
+#### 1.4.5.3 Centros Culturais, casas e espaços de cultura
+
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é a MUNIC de 2019. Método: Número de centros culturais, espaços e casas de cultura públicos e privados ÷ População total do município (x100.000).
+
+```{r}
+equip_culturais <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
+  select(id, Município, equpamentos_culturais) |> 
+  mutate(id = substr(id, 1, 6))
+
+base_tratada26 <- base_tratada25 |> 
+  left_join(equip_culturais, by = c("codufmun" = "id")) |> 
+  select(-Município)
 ```

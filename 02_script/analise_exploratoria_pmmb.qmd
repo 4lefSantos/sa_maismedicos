@@ -1,0 +1,73 @@
+---
+title: "Análise exploratória de dados: Programa Mais Médicos para o Brasil (pmmb)"
+format: html
+editor: visual
+---
+
+# Análise Exploratória de Dados: Programa Mais Médicos para o Brasil (pmmb)
+
+Nesse script será realizada a análise exploratória de dados da base tratada em outro script do Programa Mais Médicos para o Brasil (pmmb).
+
+A análise será realizada seguindo as seguintes etapas:
+
+-   Descrição e classificação das variáveis;
+
+-   Medidas de tendência central e dispersão;
+
+-   Correlações entre as variáveis.
+
+As variáveis são divididas em níveis de atributos: indivíduo, estabelecimento e município. A análise seguirá respeitando essa estrutura. Os dados são referentes aos médicos participantes do 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019) do pmmb.
+
+Abaixo as bibliotecas que serão utilizadas.
+
+```{r}
+{r}
+#|warning: FALSE
+
+library(tidyverse)
+library(readxl)
+library(writexl)
+
+#install.packages("plm")
+```
+
+## 1. Descrição e classificação de variáveis
+
+Primeiro será carregada a base de dados.
+
+```{r}
+data <- read_xlsx("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
+
+head(data)
+```
+
+Observa-se que cada observação corresponde a um médico na primeira competência de alocação no município de destinação.
+
+### 1.1 Atributos a nível indivivíduo
+
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| Variáveis qualitativas                   | Descrição                                                                                             |
++==========================================+=======================================================================================================+
+| nomeprof                                 | Nome de identificação                                                                                 |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| cpf_prof                                 | Cadastro de Pessoa Física (CPF) criptografado                                                         |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| cns_prof                                 | Cartão Nacional de Saúde (CNS), número do documento de identificação do usuário do SUS                |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| data_nascimento                          | Data de nascimento                                                                                    |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| data_formacao                            | Dada de formatura                                                                                     |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| sexo                                     | Sexo                                                                                                  |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| participou_pmmb                          | Variável binária se o médico já participou do programa em editais anteriores                          |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| competen                                 | Competência que o médico ingressou no programa                                                        |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| ibge_aloc, municipio_destino, uf_destino | \                                                                                                     |
+|                                          | Localidade em que o médico foi designado                                                              |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| atuacao_previa                           | Variável binária que identifica se o médico já atuou anteriormente no município em que foi destinado  |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
+| cnes                                     | Cadastro Nacional de Estabelecimentos de Saúde (CNES) é o número que identificação do estabelecimento |
++------------------------------------------+-------------------------------------------------------------------------------------------------------+
