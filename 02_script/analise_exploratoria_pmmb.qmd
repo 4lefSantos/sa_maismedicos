@@ -21,7 +21,6 @@ As variáveis são divididas em níveis de atributos: indivíduo, estabeleciment
 Abaixo as bibliotecas que serão utilizadas.
 
 ```{r}
-{r}
 #|warning: FALSE
 
 library(tidyverse)
@@ -45,29 +44,186 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.1 Atributos a nível indivivíduo
 
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| Variáveis qualitativas                   | Descrição                                                                                             |
-+==========================================+=======================================================================================================+
-| nomeprof                                 | Nome de identificação                                                                                 |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| cpf_prof                                 | Cadastro de Pessoa Física (CPF) criptografado                                                         |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| cns_prof                                 | Cartão Nacional de Saúde (CNS), número do documento de identificação do usuário do SUS                |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| data_nascimento                          | Data de nascimento                                                                                    |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| data_formacao                            | Dada de formatura                                                                                     |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| sexo                                     | Sexo                                                                                                  |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| participou_pmmb                          | Variável binária se o médico já participou do programa em editais anteriores                          |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| competen                                 | Competência que o médico ingressou no programa                                                        |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| ibge_aloc, municipio_destino, uf_destino | \                                                                                                     |
-|                                          | Localidade em que o médico foi designado                                                              |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| atuacao_previa                           | Variável binária que identifica se o médico já atuou anteriormente no município em que foi destinado  |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
-| cnes                                     | Cadastro Nacional de Estabelecimentos de Saúde (CNES) é o número que identificação do estabelecimento |
-+------------------------------------------+-------------------------------------------------------------------------------------------------------+
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| Variáveis qualitativas                   | Descrição                                                                                                          |
++==========================================+====================================================================================================================+
+| nomeprof                                 | Nome de identificação                                                                                              |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| cpf_prof                                 | Cadastro de Pessoa Física (CPF) criptografado                                                                      |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| cns_prof                                 | Cartão Nacional de Saúde (CNS), número do documento de identificação do usuário do SUS                             |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| data_nascimento                          | Data de nascimento                                                                                                 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| data_formacao                            | Dada de formatura                                                                                                  |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| sexo                                     | Sexo                                                                                                               |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| participou_pmmb                          | Variável binária se o médico já participou do programa em editais anteriores                                       |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| competen                                 | Competência que o médico ingressou no programa                                                                     |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| ibge_aloc, municipio_destino, uf_destino | \                                                                                                                  |
+|                                          | Localidade em que o médico foi designado                                                                           |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| atuacao_previa                           | Variável binária que identifica se o médico já atuou anteriormente no município em que foi destinado               |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| cnes                                     | Cadastro Nacional de Estabelecimentos de Saúde (CNES) é o número que identificação do estabelecimento              |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| Prorrogado                               | Variável binária que identifica os médicos que tiveram a participação no programa renovada                         |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| churn                                    | Variável binária que identifica os médicos que permaneceram no município em que foi destinado após 4,5 anos        |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| atuacao_previa_no_municipio              | Variável binária que identifica os médicos que já atuaram no município em que foi destinado em ano anterior a 2019 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| Variáveis quantitativas | Descrição                                                                                           |
++=========================+=====================================================================================================+
+| anos_atuacao            | Quantidade de anos que o médico atuou antes do inicio do programa no município em que foi destinado |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| media                   | Quantidade média de vínculos que os médicos execeram após inicio no programa                        |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| idade_em_anos           | Idade do médico na competência de ingresso no programa                                              |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| anos_formacao           | Quantidade de anos desde a formatura                                                                |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+
+### 1.2 Atributos a nível estabelecimento
+
++------------------------+--------------------------------------------------+
+| Variáveis qualitativas | Descrição                                        |
++========================+==================================================+
+| tp_unid                | Número que identifica o tipo de estabelecimento  |
++------------------------+--------------------------------------------------+
+
++----------------------------+---------------------------------------------------------------------+
+| Variáveis quantitativas    | Descrição                                                           |
++============================+=====================================================================+
+| agente_saude               | Quantidade de agentes de saúde comunitário em tempo integral        |
++----------------------------+---------------------------------------------------------------------+
+| dentista                   | Quantidade de cirurgiões-dentistas em tempo integral                |
++----------------------------+---------------------------------------------------------------------+
+| enfermeiro                 | Quantidade de enfermeiros em tempo integral                         |
++----------------------------+---------------------------------------------------------------------+
+| tec_aux_enf                | Quantidade de Técnicos e Auxiliares de Enfermagem em tempo integral |
++----------------------------+---------------------------------------------------------------------+
+| Prefixos "leitos\_\[...\]" | Quantidade de leitos                                                |
++----------------------------+---------------------------------------------------------------------+
+
+### 1.2 Atributos a nível município
+
++------------------------+--------------------------------------------------+
+| Variáveis qualitativas | Descrição                                        |
++========================+==================================================+
+| porte                  | Porte da cidade                                  |
++------------------------+--------------------------------------------------+
+
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| Variáveis quantitativas     | Descrição                                                                                          |
++=============================+====================================================================================================+
+| pib_percapita               | Produto Interno Bruto (PIB) per capita (R\$)                                                       |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| tx_pop_ocupada              | Taxa de ocupação da população (%)                                                                  |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| cobertura_saude             | Taxa da população que possui plano de saúde (%)                                                    |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| vagas_medicina_milhab       | Quantidade de vagas de medicina em faculdades no município                                         |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| orcamento_saude             | Orçamento destinado a saúde per capita (R\$)                                                       |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| esgotamento_sanitario       | População total atendida com esgotamento sanitário (%)                                             |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| taxa_homicidio              | Número de mortes por homicídio por 100 mil habitantes                                              |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| mortes_armasdefogo          | Número de mortes por armas de fogo por 100 mil habitantes                                          |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| feminicidio                 | Mortes por causas externas de mulheres por 100 mil mulheres                                        |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| ideb_anosiniciais           | Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais       |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| ideb_anosfinais             | Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Finais         |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| investimento_infraestrutura | Valor do investimento público em infraestrutura per capita                                         |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| equipamentos_esportivos     | Número de equipamentos esportivos públicos por 100 mil habitantes                                  |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| equipamentos_culturais      | Número de centros culturais, espaços e casas de cultura públicos e privados por 100 mil habitantes |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+
+## 2. Medidas de tendência central e dispersão
+
+### 2.1 Atributos a nível indivivíduo
+
+#### 2.1.1 Sexo
+
+```{r}
+
+sexo <- data |> 
+  count(sexo, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100)) |> 
+  mutate(sexo = ifelse(sexo == "Female", "Mulher", "Homem"))
+```
+
+#### 2.1.2 Atuação prévia
+
+```{r}
+
+atuacao_previa <- data |> 
+  count(atuacao_previa_no_municipio, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100))
+```
+
+#### 2.1.3 Localidade em que o médico foi designado
+
+```{r}
+uf_destino <- data |> 
+  count(uf_destino, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2))
+
+regiao_destino <- data |>  
+  mutate(regiao_destino = case_when(
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro")) |> 
+  count(regiao_destino, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100.0))
+```
+
+#### 2.1.4 Renovação
+
+```{r}
+renovacao <- data |> 
+  count(Prorrogado, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100))
+```
+
+#### 2.1.5 Churn
+
+```{r}
+churn <- data |> 
+  count(churn, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100))
+```
+
+```{r}
+
+data |> 
+  filter(atuacao_previa_no_municipio == "Sim") |> 
+  ggplot(aes(x = 1, y = anos_atuacao)) +  # Adicionei o eixo x, usando 1 para uma única coluna
+  geom_boxplot(fill = "lightblue", outlier.color = "red") +
+  stat_summary(
+    fun = median,
+    geom = "text",
+    aes(label = round(..y.., 2)), # Mostra o valor arredondado da mediana
+    vjust = -0.5,                 # Ajusta a posição vertical
+    color = "blue"
+  ) +
+  labs(title = "Boxplot com Etiquetas dos Quartis", 
+       y = "Anos de Atuação") +
+  theme_minimal()
+
+```
