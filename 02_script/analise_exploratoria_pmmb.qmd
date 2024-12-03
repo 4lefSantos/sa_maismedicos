@@ -26,8 +26,18 @@ Abaixo as bibliotecas que serão utilizadas.
 library(tidyverse)
 library(readxl)
 library(writexl)
+library(ggtext)
+library(skimr)
+library(summarytools)
+library(datawizard)
+library(psych)
+library(patchwork)
 
-#install.packages("plm")
+
+
+
+#install.packages("datawizard")
+#psych::describe(data$tec_aux_enf)
 ```
 
 ## 1. Descrição e classificação de variáveis
@@ -82,7 +92,7 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 +=========================+=====================================================================================================+
 | anos_atuacao            | Quantidade de anos que o médico atuou antes do inicio do programa no município em que foi destinado |
 +-------------------------+-----------------------------------------------------------------------------------------------------+
-| media                   | Quantidade média de vínculos que os médicos execeram após inicio no programa                        |
+| media                   | Quantidade média de vínculos que os médicos exerceram após inicio no programa                       |
 +-------------------------+-----------------------------------------------------------------------------------------------------+
 | idade_em_anos           | Idade do médico na competência de ingresso no programa                                              |
 +-------------------------+-----------------------------------------------------------------------------------------------------+
@@ -91,11 +101,11 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível estabelecimento
 
-+------------------------+--------------------------------------------------+
-| Variáveis qualitativas | Descrição                                        |
-+========================+==================================================+
-| tp_unid                | Número que identifica o tipo de estabelecimento  |
-+------------------------+--------------------------------------------------+
++------------------------+-------------------------------------------------+
+| Variáveis qualitativas | Descrição                                       |
++========================+=================================================+
+| tp_unid                | Número que identifica o tipo de estabelecimento |
++------------------------+-------------------------------------------------+
 
 +----------------------------+---------------------------------------------------------------------+
 | Variáveis quantitativas    | Descrição                                                           |
@@ -113,11 +123,11 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível município
 
-+------------------------+--------------------------------------------------+
-| Variáveis qualitativas | Descrição                                        |
-+========================+==================================================+
-| porte                  | Porte da cidade                                  |
-+------------------------+--------------------------------------------------+
++------------------------+----------------------------------------------+
+| Variáveis qualitativas | Descrição                                    |
++========================+==============================================+
+| porte                  | Porte da cidade                              |
++------------------------+----------------------------------------------+
 
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas     | Descrição                                                                                          |
@@ -209,21 +219,1137 @@ churn <- data |>
   mutate(percentual = round(total / sum(total) * 100))
 ```
 
+#### 2.1.6 Anos de atuação no município antes do programa
+
 ```{r}
+
+descritiva_anos_atuacao <- data |> 
+  filter(atuacao_previa_no_municipio == "Sim") |> 
+  summarise(
+    Mínimo = min(anos_atuacao_mesmo_municipio),
+    Q1 = quantile(anos_atuacao_mesmo_municipio, 0.25, na.rm = TRUE),
+    Mediana = median(anos_atuacao_mesmo_municipio, 0.5, na.rm = TRUE),
+    Q3 = quantile(anos_atuacao_mesmo_municipio, 0.75, na.rm = TRUE),
+    Máximo = max(anos_atuacao_mesmo_municipio)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
 
 data |> 
   filter(atuacao_previa_no_municipio == "Sim") |> 
-  ggplot(aes(x = 1, y = anos_atuacao)) +  # Adicionei o eixo x, usando 1 para uma única coluna
-  geom_boxplot(fill = "lightblue", outlier.color = "red") +
-  stat_summary(
-    fun = median,
-    geom = "text",
-    aes(label = round(..y.., 2)), # Mostra o valor arredondado da mediana
-    vjust = -0.5,                 # Ajusta a posição vertical
-    color = "blue"
+  ggplot(aes(x = anos_atuacao)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.35),   # Ajusta a posição para colocar no eixo y
+    width = 0.03,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
   ) +
-  labs(title = "Boxplot com Etiquetas dos Quartis", 
-       y = "Anos de Atuação") +
+  labs(
+    title = "Boxplot e Histograma dos Anos de Atuação", 
+    x = "Anos de Atuação", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.1.7 Idade
+
+```{r}
+descritiva_idade <- data |>
+  summarise(
+    Mínimo = min(idade_em_anos),
+    Q1 =  quantile(idade_em_anos, 0.25, na.rm = TRUE),
+    Mediana = median(idade_em_anos),
+    Q3 = quantile(idade_em_anos, 0.75, na.rm = TRUE),
+    Máximo = max(idade_em_anos)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+  
+
+data |> 
+  ggplot(aes(x = idade_em_anos)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 7)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),   # Ajusta a posição para colocar no eixo y
+    width = 0.03,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma da Idade", 
+    x = "Idade", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.1.7 Anos de formação
+
+```{r}
+descritiva_anos_formacao <- data |> 
+  summarise(
+    Mínimo = min(anos_formacao),
+    Q1 = quantile(anos_formacao, 0.25, na.rm = TRUE),
+    Mediana = median(anos_formacao),
+    Q3 = quantile(anos_formacao, 0.75, na.rm = TRUE),
+    Máximo = max(anos_formacao)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = anos_formacao)) +
+  geom_histogram(aes(y = ..count../sum(..count..)),
+                 bins = 15,
+                 fill = "lightblue",
+                 color = "white",
+                 alpha = 0.6) +
+  geom_boxplot(aes(y = 0.6),
+               with = 0.03,
+               fill = "orange",
+               outlier.color = "red")
+
+data |> 
+  ggplot(aes(x = anos_formacao)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 7)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.6),   # Ajusta a posição para colocar no eixo y
+    width = 0.06,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de Anos de Formação", 
+    x = "Anos de formação", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+### 2.2 Atributos a nível estabelecimento
+
+#### 2.2.1 Tipo de estabelecimento
+
+```{r}
+tipo_estabelecimento <- data |> 
+  count(tp_unid, name = "Tipo_estabelecimento") |> 
+  mutate(percentual = round(Tipo_estabelecimento / sum(Tipo_estabelecimento) * 100,2))
+```
+
+#### 2.2.2 Agentes comunitários de saúde
+
+```{r}
+#*Há presença de um valor ausente*
+
+descritiva_acs <- data |> 
+  summarise(
+    Mínimo = min(agente_saude, na.rm = TRUE),
+    Q1 = quantile(agente_saude, 0.25, na.rm =TRUE),
+    Mediana = median(agente_saude, na.rm = TRUE),
+    Q3 = quantile(agente_saude, 0.75, na.rm = TRUE),
+    Máximo = max(agente_saude, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = agente_saude)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.45),   # Ajusta a posição para colocar no eixo y
+    width = 0.06,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de qtd. Agentes de Saúde", 
+    x = "Agentes Comunitários de Saúde", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.3 Cirurgiões-dentistas
+
+```{r}
+descritiva_dentistas <- data |> 
+  summarise(
+    Mínimo = min(dentista, na.rm = TRUE),
+    Q1 = quantile(dentista, 0.25, na.rm =TRUE),
+    Mediana = median(dentista, na.rm = TRUE),
+    Q3 = quantile(dentista, 0.75, na.rm = TRUE),
+    Máximo = max(dentista, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = dentista)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 4)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de qtd. Cirurgiões-Dentistas", 
+    x = "Cirurgiões-Dentistas", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.4 Enfermeiros
+
+```{r}
+descritiva_enfermeiros <- data |> 
+  summarise(
+    Mínimo = min(enfermeiro, na.rm = TRUE),
+    Q1 = quantile(enfermeiro, 0.25, na.rm =TRUE),
+    Mediana = median(enfermeiro, na.rm = TRUE),
+    Q3 = quantile(enfermeiro, 0.75, na.rm = TRUE),
+    Máximo = max(enfermeiro, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = enfermeiro)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 11)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.65),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de qtd. Enfermeiros", 
+    x = "Enfermeiros", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.5 Técnicos e Auxiliares de enfermagem
+
+```{r}
+descritiva_tec_aux_enf <- data |> 
+  summarise(
+    Mínimo = min(tec_aux_enf, na.rm = TRUE),
+    Q1 = quantile(tec_aux_enf, 0.25, na.rm =TRUE),
+    Mediana = median(tec_aux_enf, na.rm = TRUE),
+    Q3 = quantile(tec_aux_enf, 0.75, na.rm = TRUE),
+    Máximo = max(tec_aux_enf, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = tec_aux_enf)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.65),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de qtd. Técnico e Auxiliar de Enfermagem", 
+    x = "Técnico e Auxiliar de Enfermagem", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.6 Leitos hospitalar cirúrgico, clínico e complementar
+
+```{r}
+descritiva_leitos_cirurgico_clinico_complementar <- data |> 
+  summarise(
+    Mínimo = min(leitos_hospitalares_cirurgico_clinico_complementar, na.rm = TRUE),
+    Q1 = quantile(leitos_hospitalares_cirurgico_clinico_complementar, 0.25, na.rm =TRUE),
+    Mediana = median(leitos_hospitalares_cirurgico_clinico_complementar, na.rm = TRUE),
+    Q3 = quantile(leitos_hospitalares_cirurgico_clinico_complementar, 0.75, na.rm = TRUE),
+    Máximo = max(leitos_hospitalares_cirurgico_clinico_complementar, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+
+data |> 
+  ggplot(aes(x = leitos_hospitalares_cirurgico_clinico_complementar)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.65),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de leitos hospitalares cirurgico, clinico ecomplementar", 
+    x = "Leitos hospitalares cirurgico, clinico ecomplementar", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.7 Leitos instalação física urgência
+
+```{r}
+descritiva_leitos_instalacao_fisica_urgencia <- data |> 
+  summarise(
+    Mínimo = min(leitos_instalacao_fisica_urgencia, na.rm = TRUE),
+    Q1 = quantile(leitos_hospitalares_cirurgico_clinico_complementar, 0.25, na.rm =TRUE),
+    Mediana = median(leitos_instalacao_fisica_urgencia, na.rm = TRUE),
+    Q3 = quantile(leitos_instalacao_fisica_urgencia, 0.75, na.rm = TRUE),
+    Máximo = max(leitos_instalacao_fisica_urgencia, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = leitos_instalacao_fisica_urgencia)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de leitos instalacao fisica urgencia", 
+    x = "Leitos instalacao fisica urgencia", 
+    y = "Percentual"
+  ) +
   theme_minimal()
 
+
+```
+
+#### 2.2.8 Leitos instalação física ambulatorial
+
+```{r}
+descritiva_leitos_instalacao_fisica_ambulatorial <- data |> 
+  summarise(
+    Mínimo = min(leitos_instalacao_fisica_ambulatorial, na.rm = TRUE),
+    Q1 = quantile(leitos_instalacao_fisica_ambulatorial, 0.25, na.rm =TRUE),
+    Mediana = median(leitos_instalacao_fisica_ambulatorial, na.rm = TRUE),
+    Q3 = quantile(leitos_instalacao_fisica_ambulatorial, 0.75, na.rm = TRUE),
+    Máximo = max(leitos_instalacao_fisica_ambulatorial, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+
+data |> 
+  ggplot(aes(x = leitos_instalacao_fisica_ambulatorial)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de leitos instalacao fisica ambulatorial", 
+    x = "Leitos instalacao fisica ambulatorial", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.9 Leitos instalação física cirúrgico
+
+```{r}
+descritiva_leitos_instalacao_fisica_obstetrico <- data |> 
+  summarise(
+    Mínimo = min(leitos_instalacao_fisica_obstetrico, na.rm = TRUE),
+    Q1 = quantile(leitos_instalacao_fisica_obstetrico, 0.25, na.rm =TRUE),
+    Mediana = median(leitos_instalacao_fisica_obstetrico, na.rm = TRUE),
+    Q3 = quantile(leitos_instalacao_fisica_obstetrico, 0.75, na.rm = TRUE),
+    Máximo = max(leitos_instalacao_fisica_obstetrico, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = leitos_instalacao_fisica_obstetrico)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
+    width = 0.09,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de leitos instalacao fisica obstétrico", 
+    x = "Leitos instalacao fisica obstétrico", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+### 2.3 Atributos a nível município
+
+#### 2.3.1 Porte da cidade
+
+```{r}
+porte <- data |> 
+  count(porte, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2))
+```
+
+#### 2.3.2 Produto Interno Bruto (PIB) per capita (R\$)
+
+```{r}
+descritiva_pib_percapita <- data |> 
+  summarise(
+    Mínimo = min(pib_percapita, na.rm = TRUE),
+    Q1 = quantile(pib_percapita, 0.25, na.rm =TRUE),
+    Mediana = median(pib_percapita, na.rm = TRUE),
+    Q3 = quantile(pib_percapita, 0.75, na.rm = TRUE),
+    Máximo = max(pib_percapita, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = pib_percapita)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma do PIB per capita", 
+    x = "PIB per capita", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.3 Taxa de ocupação da população (%)
+
+```{r}
+descritiva_tx_pop_ocupada <- data |> 
+  summarise(
+    Mínimo = min(tx_pop_ocupada, na.rm = TRUE),
+    Q1 = quantile(tx_pop_ocupada, 0.25, na.rm =TRUE),
+    Mediana = median(tx_pop_ocupada, na.rm = TRUE),
+    Q3 = quantile(tx_pop_ocupada, 0.75, na.rm = TRUE),
+    Máximo = max(tx_pop_ocupada, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+
+data |> 
+  ggplot(aes(x = tx_pop_ocupada)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma da taxa de população ocupada", 
+    x = "Taxa de população ocupada", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.4 Taxa da população que possui plano de saúde (%)
+
+```{r}
+descritiva_cobertura_plano_saude <- data |> 
+  summarise(
+    Mínimo = min(cobertura_saude, na.rm = TRUE),
+    Q1 = quantile(cobertura_saude, 0.25, na.rm =TRUE),
+    Mediana = median(cobertura_saude, na.rm = TRUE),
+    Q3 = quantile(cobertura_saude, 0.75, na.rm = TRUE),
+    Máximo = max(cobertura_saude, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = cobertura_saude)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma da taxa de cobertura de plano de saúde", 
+    x = "Taxa de cobertura de plano de saúde", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.5 Quantidade de vagas de medicina em faculdades no município
+
+```{r}
+descritiva_vagas_medicina <- data |> 
+  summarise(
+    Mínimo = min(vagas_medicina_milhab, na.rm = TRUE),
+    Q1 = quantile(vagas_medicina_milhab, 0.25, na.rm =TRUE),
+    Mediana = median(vagas_medicina_milhab, na.rm = TRUE),
+    Q3 = quantile(vagas_medicina_milhab, 0.75, na.rm = TRUE),
+    Máximo = max(vagas_medicina_milhab, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = vagas_medicina_milhab)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.9),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de vagas de medicina por mil habitantes", 
+    x = "Vagas de medicina por mil habitantes", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.6 Orçamento destinado a saúde per capita (R\$)
+
+tem 2 NA's
+
+```{r}
+descritiva_orcamento_saude <- data |> 
+  summarise(
+    Mínimo = min(orcamento_saude, na.rm = TRUE),
+    Q1 = quantile(orcamento_saude, 0.25, na.rm =TRUE),
+    Mediana = median(orcamento_saude, na.rm = TRUE),
+    Q3 = quantile(orcamento_saude, 0.75, na.rm = TRUE),
+    Máximo = max(orcamento_saude, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+
+data |> 
+  ggplot(aes(x = orcamento_saude)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.55),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma do orçamento de saúde per capita", 
+    x = "Orçamento de saúde per capita", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.7 População total atendida com esgotamento sanitário (%)
+
+```{r}
+descritiva_esgoto <- data |> 
+  summarise(
+    Mínimo = min(esgotamento_sanitario, na.rm = TRUE),
+    Q1 = quantile(esgotamento_sanitario, 0.25, na.rm =TRUE),
+    Mediana = median(esgotamento_sanitario, na.rm = TRUE),
+    Q3 = quantile(esgotamento_sanitario, 0.75, na.rm = TRUE),
+    Máximo = max(esgotamento_sanitario, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = esgotamento_sanitario)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma da cobertura de esgoto sanitário", 
+    x = "Cobertura de esgotamento sanitário", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.8 Número de mortes por homicídio por 100 mil habitantes
+
+```{r}
+descritiva_homicidio <- data |> 
+  summarise(
+    Mínimo = min(taxa_homicidio, na.rm = TRUE),
+    Q1 = quantile(taxa_homicidio, 0.25, na.rm =TRUE),
+    Mediana = median(taxa_homicidio, na.rm = TRUE),
+    Q3 = quantile(taxa_homicidio, 0.75, na.rm = TRUE),
+    Máximo = max(taxa_homicidio, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = esgotamento_sanitario)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma da taxa de mortes por homícidio por 100 mil habitantes", 
+    x = "Taxa de mortes por homicídio por 100 mil habitantes",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.9 Número de mortes por armas de fogo por 100 mil habitantes
+
+```{r}
+
+descritiva_mortes_armasdefogo <- data |> 
+  summarise(
+    Mínimo = min(mortes_armasdefogo, na.rm = TRUE),
+    Q1 = quantile(mortes_armasdefogo, 0.25, na.rm =TRUE),
+    Mediana = median(mortes_armasdefogo, na.rm = TRUE),
+    Q3 = quantile(mortes_armasdefogo, 0.75, na.rm = TRUE),
+    Máximo = max(mortes_armasdefogo, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = mortes_armasdefogo)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.85),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de mortes por armas de fogo por 100 mil habitantes", 
+    x = "Mortes por armas de fogo por 100 mil habitantes",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.10 Mortes por causas externas de mulheres por 100 mil mulheres
+
+```{r}
+
+descritiva_feminicidio <- data |> 
+  summarise(
+    Mínimo = min(feminicidio, na.rm = TRUE),
+    Q1 = quantile(feminicidio, 0.25, na.rm =TRUE),
+    Mediana = median(feminicidio, na.rm = TRUE),
+    Q3 = quantile(feminicidio, 0.75, na.rm = TRUE),
+    Máximo = max(feminicidio, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = feminicidio)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de mortes por causas externas de mulheres por 100 mil mulheress", 
+    x = "Mortes por causas externas de mulheres por 100 mil mulheres",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.11 Nota do IDEB - Rede municipal - Anos Iniciais
+
+Tem 25 NA's
+
+```{r}
+data |> 
+  filter(is.na(ideb_anosiniciais)) |> 
+  count()
+
+descritiva_ideb_inicial <- data |> 
+  summarise(
+    Mínimo = min(ideb_anosiniciais, na.rm = TRUE),
+    Q1 = quantile(ideb_anosiniciais, 0.25, na.rm =TRUE),
+    Mediana = median(ideb_anosiniciais, na.rm = TRUE),
+    Q3 = quantile(ideb_anosiniciais, 0.75, na.rm = TRUE),
+    Máximo = max(ideb_anosiniciais, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = ideb_anosiniciais)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),   # Ajusta a posição para colocar no eixo y
+    width = 0.05,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de Nota do IDEB - Anos Iniciais", 
+    x = "Nota do IDEB - Anos Iniciais",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.12 Nota do IDEB - Rede municipal - Anos Finais
+
+Tem 279 NA's
+
+```{r}
+data |> 
+  filter(is.na(ideb_anosfinais)) |> 
+  count()
+
+descritiva_ideb_final <- data |> 
+  summarise(
+    Mínimo = min(ideb_anosfinais, na.rm = TRUE),
+    Q1 = quantile(ideb_anosfinais, 0.25, na.rm =TRUE),
+    Mediana = median(ideb_anosfinais, na.rm = TRUE),
+    Q3 = quantile(ideb_anosfinais, 0.75, na.rm = TRUE),
+    Máximo = max(ideb_anosfinais, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = ideb_anosfinais)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),   # Ajusta a posição para colocar no eixo y
+    width = 0.05,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de Nota do IDEB - Anos Finais", 
+    x = "Nota do IDEB - Anos Finais",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.13 Valor do investimento público em infraestrutura per capita (R\$)
+
+```{r}
+descritiva_investimento_infraestrutura <- data |> 
+  summarise(
+    Mínimo = min(investimento_infraestrutura, na.rm = TRUE),
+    Q1 = quantile(investimento_infraestrutura, 0.25, na.rm =TRUE),
+    Mediana = median(investimento_infraestrutura, na.rm = TRUE),
+    Q3 = quantile(investimento_infraestrutura, 0.75, na.rm = TRUE),
+    Máximo = max(investimento_infraestrutura, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = investimento_infraestrutura)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de investimento em infraestrutura per capita", 
+    x = "Investimento em infraestrutura per capita",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.14 Número de equipamentos esportivos públicos por 100 mil habitantes
+
+```{r}
+
+descritiva_equipamentos_esportivos <- data |> 
+  summarise(
+    Mínimo = min(equipamentos_esportivos, na.rm = TRUE),
+    Q1 = quantile(equipamentos_esportivos, 0.25, na.rm =TRUE),
+    Mediana = median(equipamentos_esportivos, na.rm = TRUE),
+    Q3 = quantile(equipamentos_esportivos, 0.75, na.rm = TRUE),
+    Máximo = max(equipamentos_esportivos, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = equipamentos_esportivos)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 15)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.7),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histogramade equipamentos esportivos públicos por 100 mil habitantes", 
+    x = "Equipamentos esportivos públicos por 100 mil habitantes",
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.15 Número de espaços culturais públicos e privados por 100 mil habitantes
+
+```{r}
+descritiva_equipamentos_culturais <- data |> 
+  summarise(
+    Mínimo = min(equpamentos_culturais, na.rm = TRUE),
+    Q1 = quantile(equpamentos_culturais, 0.25, na.rm =TRUE),
+    Mediana = median(equpamentos_culturais, na.rm = TRUE),
+    Q3 = quantile(equpamentos_culturais, 0.75, na.rm = TRUE),
+    Máximo = max(equpamentos_culturais, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+data |> 
+  ggplot(aes(x = equpamentos_culturais)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 15)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.7),   # Ajusta a posição para colocar no eixo y
+    width = 0.07,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  labs(
+    title = "Boxplot e Histograma de espaços culturais públicos e privados por 100 mil habitantes", 
+    x = "Espaços culturais públicos e privados por 100 mil habitantes",
+    y = "Percentual"
+  ) +
+  theme_minimal()
 ```

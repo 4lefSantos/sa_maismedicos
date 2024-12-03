@@ -344,7 +344,7 @@ atuacao <-
     group_by(ibge_aloc, CPF_PROF) |> 
     count() |> 
     mutate(atuacao_previa_no_municipio = "Sim") |> 
-    mutate(anos_atuacao = n/12) |> 
+    mutate(anos_atuacao_mesmo_municipio = n/12) |> 
     ungroup() |> 
     select(-ibge_aloc, -n)
 
@@ -383,7 +383,7 @@ vinculos_cidade <-
   filter(codufmun == ibge_aloc) |> 
   select(cpf_prof, competen, n) |> 
   group_by(cpf_prof) |> 
-  summarise(media = mean(n))
+  summarise(media_vinculos = mean(n))
 
 ```
 
@@ -456,13 +456,13 @@ Juntando à base original.
 
 ```{r}
 
-base_tratada5 <- 
-  base_tratada4 |> 
+base_tratada6 <- 
+  base_tratada5 |> 
   left_join(churn, 
             by = c("cpf_prof"))
 
 
-base_tratada5$churn[is.na(base_tratada5$churn)] <- "migrou"
+base_tratada6$churn[is.na(base_tratada6$churn)] <- "migrou"
 
 ```
 
@@ -494,8 +494,8 @@ Juntando com a base.
 
 ```{r}
 
-base_tratada6 <- 
-  base_tratada5 |>
+base_tratada7 <- 
+  base_tratada6 |>
   left_join(idade, 
             by = c("cpf_prof"))
   
@@ -510,8 +510,8 @@ A próxima etapa será identificar os profissionais que tiveram a permanência n
 prorrogacao_ciclo18 <- 
   read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
 
-base_tratada7 <- 
-  base_tratada6 |>   
+base_tratada8 <- 
+  base_tratada7 |>   
   left_join(prorrogacao_ciclo18, 
             by = c("nomeprof" = "NOME")) |>   
   mutate(Prorrogado = ifelse(is.na(Prorrogado), 
@@ -549,8 +549,8 @@ Juntando com a base anterior.
 
 ```{r}
 
-base_tratada8 <- 
-  base_tratada7 |> 
+base_tratada9 <- 
+  base_tratada8 |> 
   left_join(anos_formado, 
             by = c("cpf_prof"))
 
@@ -560,8 +560,8 @@ Por fim, feitos todos os tratamentos, vamos manter apenas uma observação por i
 
 ```{r}
 
-base_tratada9 <- 
-  base_tratada8 |> 
+base_tratada10 <- 
+  base_tratada9 |> 
     filter(tp_unid == "01"|
            tp_unid == "02"|
            tp_unid == "32"|
@@ -654,7 +654,7 @@ leitos_unidades <-
 
 leitos$Ano <- as.numeric(leitos$Ano)
 
-base_tratada10 <- base_tratada9 |>
+base_tratada11 <- base_tratada10 |>
   left_join(leitos, 
             by = c("cnes" = "CNES", 
                    "ano" = "Ano"))
@@ -794,8 +794,8 @@ base
 
 ```{r}
 
-base_tratada11 <- 
-  base_tratada10 |> 
+base_tratada12 <- 
+  base_tratada11 |> 
     left_join(equipe_saude3,
               by = c("cnes"="CNES"))
   
@@ -894,7 +894,7 @@ pop_mun <-
   mutate(populacao = as.numeric(populacao))
 
 
-base_tratada12 <- base_tratada11 |> 
+base_tratada13 <- base_tratada12 |> 
   left_join(pop_mun, by = c("codufmun" = "cod_mun")) |> 
   select(-mun) |> 
   mutate(porte = 
@@ -956,7 +956,7 @@ pib_percapita <- pib_percapita |>
   mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> 
   mutate(ano = as.numeric(ano))
 
-base_tratada13 <- base_tratada12 |> 
+base_tratada14 <- base_tratada13 |> 
   left_join(pib_percapita, by = c("codufmun" = "codigo_municipio", "ano" = "ano"))
 ```
 
@@ -978,8 +978,8 @@ pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_mais
   mutate(ano = as.numeric(ano)) |> 
   mutate(cod_ibge = substring(cod_ibge,1,6))
 
-base_tratada14 <- 
-  base_tratada13 |> 
+base_tratada15 <- 
+  base_tratada14 |> 
   left_join(pop_ocupada_mun, 
             by = c("codufmun" = "cod_ibge", 
                    "ano" = "ano")) |> 
@@ -1035,7 +1035,7 @@ cobertura_saude <- cobertura_saude |>
   rename(cobertura_saude = taxa) |> 
   mutate(cobertura_saude = as.numeric(cobertura_saude))
 
-base_tratada15 <- base_tratada14 |> 
+base_tratada16 <- base_tratada15 |> 
   left_join(cobertura_saude, by = c("codufmun" = "cod_ibge"))
 ```
 
@@ -1080,7 +1080,7 @@ vagas_medicina <- sqlQuery(channel, query,
 
 ```{r}
 
-base_tratada16 <- base_tratada15 |> 
+base_tratada17 <- base_tratada16 |> 
   left_join(vagas_medicina, by = c("codufmun" = "cod_ibge")) |> 
   mutate(vagas_medicina = as.numeric(vagas_medicina)) |> 
   mutate(vagas_medicina_milhab = (vagas_medicina/populacao)*1000) |> 
@@ -1099,7 +1099,7 @@ orcamento_saude <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/ind
   mutate(id = substr(id, 1, 6))
 
 
-base_tratada17 <- base_tratada16 |> 
+base_tratada18 <- base_tratada17 |> 
   left_join(orcamento_saude, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1113,7 +1113,7 @@ esgoto_sanitario <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/in
   select(id, Município, esgotamento_sanitario) |> 
   mutate(id = substr(id, 1, 6))
   
-base_tratada18 <- base_tratada17 |> 
+base_tratada19 <- base_tratada18 |> 
   left_join(esgoto_sanitario, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1129,7 +1129,7 @@ tx_homicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indica
   select(id, Município, taxa_homicidio) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada19 <- base_tratada18 |> 
+base_tratada20 <- base_tratada19 |> 
   left_join(tx_homicidio, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1143,7 +1143,7 @@ armas_fogo <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicado
   select(id, Município, mortes_armasdefogo) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada20 <- base_tratada19 |> 
+base_tratada21 <- base_tratada20 |> 
   left_join(armas_fogo, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1157,7 +1157,7 @@ taxa_feminicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/in
   select(id, Município, feminicidio) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada21 <- base_tratada20 |> 
+base_tratada22 <- base_tratada21 |> 
   left_join(taxa_feminicidio, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1173,7 +1173,7 @@ ideb_inicio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicad
   select(id, Município, ideb_anosiniciais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada22 <- base_tratada21 |> 
+base_tratada23 <- base_tratada22 |> 
   left_join(ideb_inicio, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1187,7 +1187,7 @@ ideb_final <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicado
   select(id, Município, ideb_anosfinais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada23 <- base_tratada22 |> 
+base_tratada24 <- base_tratada23 |> 
   left_join(ideb_final, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1204,7 +1204,7 @@ infraestrutura <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indi
   select(id, Município, investimento_infraestrutura) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada24 <- base_tratada23 |> 
+base_tratada25 <- base_tratada24 |> 
   left_join(infraestrutura, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1218,7 +1218,7 @@ equip_esportivos <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/in
   select(id, Município, equipamentos_esportivos) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada25 <- base_tratada24 |> 
+base_tratada26 <- base_tratada25 |> 
   left_join(equip_esportivos, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1232,7 +1232,11 @@ equip_culturais <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/ind
   select(id, Município, equpamentos_culturais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada26 <- base_tratada25 |> 
+base_tratada27 <- base_tratada26 |> 
   left_join(equip_culturais, by = c("codufmun" = "id")) |> 
   select(-Município)
+
+base_tratada28 <- base_tratada27 |> 
+  mutate(anos_atuacao_mesmo_municipio = ifelse(is.na(anos_atuacao), 0, anos_atuacao)) |> 
+  select(-anos_atuacao)
 ```
