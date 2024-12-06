@@ -32,6 +32,7 @@ library(summarytools)
 library(datawizard)
 library(psych)
 library(patchwork)
+library(scales)
 
 
 
@@ -123,11 +124,11 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível município
 
-+------------------------+----------------------------------------------+
-| Variáveis qualitativas | Descrição                                    |
-+========================+==============================================+
-| porte                  | Porte da cidade                              |
-+------------------------+----------------------------------------------+
++------------------------+---------------------------------------------+
+| Variáveis qualitativas | Descrição                                   |
++========================+=============================================+
+| porte                  | Porte da cidade                             |
++------------------------+---------------------------------------------+
 
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas     | Descrição                                                                                          |
@@ -191,14 +192,16 @@ uf_destino <- data |>
   count(uf_destino, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100,2))
 
-regiao_destino <- data |>  
+data <- data |>  
   mutate(regiao_destino = case_when(
     (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
     (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
     (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
     (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
     (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
-    TRUE ~ "Outro")) |> 
+    TRUE ~ "Outro"))
+
+regiao_destino <- data |> 
   count(regiao_destino, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100.0))
 ```
@@ -1352,4 +1355,36 @@ data |>
     y = "Percentual"
   ) +
   theme_minimal()
+```
+
+### 3. Correlações entre variáveis
+
+#### 3.1 Atributos a nível indivíduo
+
+```{r}
+
+corr_regiao_churn <- data |> 
+  group_by(regiao_destino, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = permanece / (permanece + migrou))
+
+```
+
+```{r}
+
+corr_renovacao_churn <- data |> 
+  group_by(Prorrogado, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = permanece / (permanece + migrou))
+
+```
+
+```{r}
+
+
+
+
+
 ```
