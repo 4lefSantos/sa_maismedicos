@@ -10,9 +10,9 @@ Nesse script será realizada a análise exploratória de dados da base tratada e
 
 A análise será realizada seguindo as seguintes etapas:
 
--   Descrição e classificação das variáveis;
+-   Classificação e descrição das variáveis;
 
--   Medidas de tendência central e dispersão;
+-   Medidas de tendência central;
 
 -   Correlações entre as variáveis.
 
@@ -33,7 +33,8 @@ library(datawizard)
 library(psych)
 library(patchwork)
 library(scales)
-
+library(ggpubr)
+library(GGally)
 
 
 
@@ -41,7 +42,7 @@ library(scales)
 #psych::describe(data$tec_aux_enf)
 ```
 
-## 1. Descrição e classificação de variáveis
+## 1. Classificação e descrição de variáveis
 
 Primeiro será carregada a base de dados.
 
@@ -124,11 +125,11 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível município
 
-+------------------------+---------------------------------------------+
-| Variáveis qualitativas | Descrição                                   |
-+========================+=============================================+
-| porte                  | Porte da cidade                             |
-+------------------------+---------------------------------------------+
++------------------------+-----------------------------------------+
+| Variáveis qualitativas | Descrição                               |
++========================+=========================================+
+| porte                  | Porte da cidade                         |
++------------------------+-----------------------------------------+
 
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas     | Descrição                                                                                          |
@@ -162,7 +163,7 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 | equipamentos_culturais      | Número de centros culturais, espaços e casas de cultura públicos e privados por 100 mil habitantes |
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 
-## 2. Medidas de tendência central e dispersão
+## 2. Medidas de tendência central
 
 ### 2.1 Atributos a nível indivivíduo
 
@@ -173,7 +174,17 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 sexo <- data |> 
   count(sexo, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100)) |> 
-  mutate(sexo = ifelse(sexo == "Female", "Mulher", "Homem"))
+  mutate(sexo = ifelse(sexo == "Female", "Feminino", "Masculino"))
+
+
+sexo |> 
+  ggplot(aes(x = "", y = percentual, fill = sexo)) + 
+  geom_bar(stat = "identity", width = 1) +          
+  coord_polar("y", start = 0) +  
+  geom_text(aes(label = paste0(percentual, "%")),
+            position = position_stack(vjust = 0.5)) +
+  labs(fill = "Sexo") + 
+  theme_void()
 ```
 
 #### 2.1.2 Atuação prévia
@@ -183,6 +194,15 @@ sexo <- data |>
 atuacao_previa <- data |> 
   count(atuacao_previa_no_municipio, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100))
+
+atuacao_previa |> 
+  ggplot(aes(x = "", y = percentual, fill = atuacao_previa_no_municipio)) +
+  geom_bar(stat = "identity", widht = 1) + 
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(percentual, "%")),
+            position = position_stack(vjust = 0.5)) +
+  labs(fill = "Atuação prévia no município?") +
+  theme_void()
 ```
 
 #### 2.1.3 Localidade em que o médico foi designado
@@ -204,6 +224,18 @@ data <- data |>
 regiao_destino <- data |> 
   count(regiao_destino, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100.0))
+
+regiao_destino |> 
+  ggplot(aes(x = fct_reorder(regiao_destino, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(percentual, "%")), hjust = -0.2) + 
+  labs(title = "Região de destino",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
 ```
 
 #### 2.1.4 Renovação
@@ -212,6 +244,14 @@ regiao_destino <- data |>
 renovacao <- data |> 
   count(Prorrogado, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100))
+
+renovacao |> 
+  ggplot(aes(x = "", y = percentual, fill = Prorrogado)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(percentual, "%")),
+            position = position_stack(vjust = 0.5)) +
+  theme_void()
 ```
 
 #### 2.1.5 Churn
@@ -220,6 +260,14 @@ renovacao <- data |>
 churn <- data |> 
   count(churn, name = "total") |> 
   mutate(percentual = round(total / sum(total) * 100))
+
+churn |> 
+  ggplot(aes(x = "", y = percentual, fill = churn)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(percentual, "%")),
+            position = position_stack(vjust = 0.5)) +
+  theme_void()
 ```
 
 #### 2.1.6 Anos de atuação no município antes do programa
@@ -245,25 +293,32 @@ descritiva_anos_atuacao <- data |>
 
 data |> 
   filter(atuacao_previa_no_municipio == "Sim") |> 
-  ggplot(aes(x = anos_atuacao)) + 
-  # Histograma
+  ggplot(aes(x = anos_atuacao_mesmo_municipio)) + 
   geom_histogram(aes(y = ..count../sum(..count..)), 
                  bins = 15, 
                  fill = "lightblue", 
                  color = "white", 
                  alpha = 0.6) +
-  # Boxplot
   geom_boxplot(
-    aes(y = 0.35),   # Ajusta a posição para colocar no eixo y
-    width = 0.03,   # Ajusta a altura do boxplot
+    aes(y = 0.35),
+    width = 0.03,
     fill = "orange",
     outlier.color = "red"
   ) +
+  geom_vline(xintercept = descritiva_anos_atuacao$Mediana, linetype = "dashed", color = "blue") +
   labs(
-    title = "Boxplot e Histograma dos Anos de Atuação", 
-    x = "Anos de Atuação", 
+    title = "Boxplot e Histograma", 
+    x = "Anos de atuação prévia no município", 
     y = "Densidade"
   ) +
+    annotate("text", 
+           x = descritiva_anos_atuacao$Mediana, 
+           y = 0.015,
+           label = descritiva_anos_atuacao$Mediana, 
+           color = "blue", 
+           angle = 90, 
+           vjust = -0.5, 
+           size = 3.5) +
   theme_minimal()
 ```
 
@@ -303,10 +358,19 @@ data |>
     fill = "orange",
     outlier.color = "red"
   ) +
+    geom_vline(xintercept = descritiva_idade$Mediana, linetype = "dashed", color = "blue") +
+      annotate("text", 
+           x = descritiva_idade$Mediana, 
+           y = 0.015,
+           label = round(descritiva_idade$Mediana,1), 
+           color = "blue", 
+           angle = 90, 
+           vjust = -0.5, 
+           size = 3.5) +
   labs(
-    title = "Boxplot e Histograma da Idade", 
+    title = "Boxplot e Histograma", 
     x = "Idade", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -330,17 +394,6 @@ descritiva_anos_formacao <- data |>
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
 
-data |> 
-  ggplot(aes(x = anos_formacao)) +
-  geom_histogram(aes(y = ..count../sum(..count..)),
-                 bins = 15,
-                 fill = "lightblue",
-                 color = "white",
-                 alpha = 0.6) +
-  geom_boxplot(aes(y = 0.6),
-               with = 0.03,
-               fill = "orange",
-               outlier.color = "red")
 
 data |> 
   ggplot(aes(x = anos_formacao)) + 
@@ -353,13 +406,22 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 7)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.6),   # Ajusta a posição para colocar no eixo y
-    width = 0.06,   # Ajusta a altura do boxplot
+    aes(y = 0.6),
+    width = 0.06,
     fill = "orange",
     outlier.color = "red"
   ) +
+  geom_vline(xintercept = descritiva_anos_formacao$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = descritiva_anos_formacao$Mediana,
+           y = 0.015, 
+           label = round(descritiva_anos_formacao$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de Anos de Formação", 
+    title = "Boxplot e Histograma", 
     x = "Anos de formação", 
     y = "Percentual"
   ) +
@@ -372,8 +434,25 @@ data |>
 
 ```{r}
 tipo_estabelecimento <- data |> 
-  count(tp_unid, name = "Tipo_estabelecimento") |> 
-  mutate(percentual = round(Tipo_estabelecimento / sum(Tipo_estabelecimento) * 100,2))
+  count(tp_unid, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2)) |> 
+  mutate(tp_unid = case_when(tp_unid == "01" ~ "POSTO DE SAÚDE",
+                             tp_unid == "02" ~ "UNIDADE BÁSICA DE SAÚDE",
+                             tp_unid == "71" ~ "CENTRO DE APOIO A SAÚDE DA FAMÍLIA",
+                             tp_unid == "72" ~ "UNIDADE DE ATENÇÃO A SAÚDE INDIGENA",
+                             TRUE ~ tp_unid))
+
+tipo_estabelecimento |> 
+  ggplot(aes(x = fct_reorder(tp_unid, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(percentual, "%")), hjust = -0.2) + 
+  labs(title = "Tipo de estabelecimento",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
 ```
 
 #### 2.2.2 Agentes comunitários de saúde
@@ -408,15 +487,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.45),   # Ajusta a posição para colocar no eixo y
-    width = 0.06,   # Ajusta a altura do boxplot
+    aes(y = 0.45),
+    width = 0.06,
     fill = "orange",
     outlier.color = "red"
   ) +
+    geom_vline(xintercept = descritiva_acs$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = descritiva_acs$Mediana,
+           y = 0.015, 
+           label = round(descritiva_acs$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de qtd. Agentes de Saúde", 
+    title = "Boxplot e Histograma", 
     x = "Agentes Comunitários de Saúde", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -451,15 +539,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 4)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.75),
+    width = 0.09,
     fill = "orange",
     outlier.color = "red"
   ) +
+      geom_vline(xintercept = descritiva_dentistas$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = descritiva_dentistas$Mediana,
+           y = 0.015, 
+           label = descritiva_dentistas$Mediana,
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de qtd. Cirurgiões-Dentistas", 
+    title = "Boxplot e Histograma", 
     x = "Cirurgiões-Dentistas", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -494,15 +591,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 11)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.65),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.65),
+    width = 0.09,
     fill = "orange",
     outlier.color = "red"
   ) +
+        geom_vline(xintercept = descritiva_enfermeiros$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_enfermeiros$Mediana,
+           y = 0.015, 
+           label = round(descritiva_enfermeiros$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de qtd. Enfermeiros", 
+    title = "Boxplot e Histograma", 
     x = "Enfermeiros", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -537,15 +643,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.65),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.65),
+    width = 0.09,
     fill = "orange",
     outlier.color = "red"
   ) +
+          geom_vline(xintercept = descritiva_tec_aux_enf$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_tec_aux_enf$Mediana,
+           y = 0.015, 
+           label = round(descritiva_tec_aux_enf$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de qtd. Técnico e Auxiliar de Enfermagem", 
+    title = "Boxplot e Histograma", 
     x = "Técnico e Auxiliar de Enfermagem", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -581,13 +696,13 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.65),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.65),
+    width = 0.09,
     fill = "orange",
     outlier.color = "red"
   ) +
   labs(
-    title = "Boxplot e Histograma de leitos hospitalares cirurgico, clinico ecomplementar", 
+    title = "Boxplot e Histograma", 
     x = "Leitos hospitalares cirurgico, clinico ecomplementar", 
     y = "Percentual"
   ) +
@@ -624,11 +739,20 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.75),
+    width = 0.09,
     fill = "orange",
     outlier.color = "red"
   ) +
+            geom_vline(xintercept = descritiva_leitos_instalacao_fisica_urgencia$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_leitos_instalacao_fisica_urgencia$Mediana,
+           y = 0.015, 
+           label = round(descritiva_leitos_instalacao_fisica_urgencia$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
     title = "Boxplot e Histograma de leitos instalacao fisica urgencia", 
     x = "Leitos instalacao fisica urgencia", 
@@ -670,13 +794,13 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.75),
+    width = 0.09,
     fill = "orange",
     outlier.color = "red"
   ) +
   labs(
-    title = "Boxplot e Histograma de leitos instalacao fisica ambulatorial", 
+    title = "Boxplot e Histograma", 
     x = "Leitos instalacao fisica ambulatorial", 
     y = "Percentual"
   ) +
@@ -713,8 +837,8 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.75),   # Ajusta a posição para colocar no eixo y
-    width = 0.09,   # Ajusta a altura do boxplot
+    aes(y = 0.75),
+    width = 0.09, 
     fill = "orange",
     outlier.color = "red"
   ) +
@@ -733,7 +857,24 @@ data |>
 ```{r}
 porte <- data |> 
   count(porte, name = "total") |> 
-  mutate(percentual = round(total / sum(total) * 100,2))
+  mutate(percentual = round(total / sum(total) * 100,2)) |> 
+  mutate(porte = case_when(porte == "PP-I" ~ "Pequeno porte 1",
+                           porte == "PP-II" ~ "Pequeno porte 2",
+                           porte == "MP" ~ "Médio porte",
+                           porte == "GP" ~ "Grande porte",
+                           TRUE ~ porte))
+
+porte |> 
+  ggplot(aes(x = fct_reorder(porte, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(percentual, "%")), hjust = -0.2) + 
+  labs(title = "Porte do município",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
 ```
 
 #### 2.3.2 Produto Interno Bruto (PIB) per capita (R\$)
@@ -759,22 +900,31 @@ data |>
   ggplot(aes(x = pib_percapita)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 15, 
+                 bins = 20, 
                  fill = "lightblue", 
                  color = "white", 
                  alpha = 0.6) +
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.4),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+  geom_vline(xintercept = descritiva_pib_percapita$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_pib_percapita$Mediana,
+           y = 0.015, 
+           label = round(descritiva_pib_percapita$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma do PIB per capita", 
+    title = "Boxplot e Histograma", 
     x = "PIB per capita", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -810,13 +960,22 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.5),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+    geom_vline(xintercept = descritiva_tx_pop_ocupada$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_tx_pop_ocupada$Mediana,
+           y = 0.015, 
+           label = round(descritiva_tx_pop_ocupada$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma da taxa de população ocupada", 
+    title = "Boxplot e Histograma", 
     x = "Taxa de população ocupada", 
     y = "Percentual"
   ) +
@@ -846,18 +1005,27 @@ data |>
   ggplot(aes(x = cobertura_saude)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 15, 
+                 bins = 30, 
                  fill = "lightblue", 
                  color = "white", 
                  alpha = 0.6) +
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.5),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+      geom_vline(xintercept = descritiva_cobertura_plano_saude$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_cobertura_plano_saude$Mediana,
+           y = 0.015, 
+           label = round(descritiva_cobertura_plano_saude$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
     title = "Boxplot e Histograma da taxa de cobertura de plano de saúde", 
     x = "Taxa de cobertura de plano de saúde", 
@@ -896,13 +1064,13 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.9),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.9),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
   labs(
-    title = "Boxplot e Histograma de vagas de medicina por mil habitantes", 
+    title = "Boxplot e Histogramas", 
     x = "Vagas de medicina por mil habitantes", 
     y = "Percentual"
   ) +
@@ -935,22 +1103,31 @@ data |>
   ggplot(aes(x = orcamento_saude)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 15, 
+                 bins = 20, 
                  fill = "lightblue", 
                  color = "white", 
                  alpha = 0.6) +
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.55),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.6),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+        geom_vline(xintercept = descritiva_orcamento_saude$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_orcamento_saude$Mediana,
+           y = 0.015, 
+           label = round(descritiva_orcamento_saude$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma do orçamento de saúde per capita", 
-    x = "Orçamento de saúde per capita", 
-    y = "Percentual"
+    title = "Boxplot e Histograma", 
+    x = "Orçamento de saúde per capita (R$)", 
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -985,15 +1162,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.5),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+          geom_vline(xintercept = descritiva_esgoto$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_esgoto$Mediana,
+           y = 0.015, 
+           label = round(descritiva_esgoto$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma da cobertura de esgoto sanitário", 
-    x = "Cobertura de esgotamento sanitário", 
-    y = "Percentual"
+    title = "Boxplot e Histograma", 
+    x = "Cobertura de esgotamento sanitário (%)", 
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1018,7 +1204,7 @@ descritiva_homicidio <- data |>
   relocate(Limite_inferior, .before = Mínimo)
 
 data |> 
-  ggplot(aes(x = esgotamento_sanitario)) + 
+  ggplot(aes(x = taxa_homicidio)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
                  bins = 15, 
@@ -1028,15 +1214,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.5),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+            geom_vline(xintercept = descritiva_homicidio$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_homicidio$Mediana,
+           y = 0.015, 
+           label = round(descritiva_homicidio$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma da taxa de mortes por homícidio por 100 mil habitantes", 
-    x = "Taxa de mortes por homicídio por 100 mil habitantes",
-    y = "Percentual"
+    title = "Boxplot e Histograma", 
+    x = "Homicídios por 100 mil habitantes",
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1072,15 +1267,15 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.85),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.85),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
   labs(
-    title = "Boxplot e Histograma de mortes por armas de fogo por 100 mil habitantes", 
+    title = "Boxplot e Histograma", 
     x = "Mortes por armas de fogo por 100 mil habitantes",
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1116,13 +1311,22 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.5),
+    width = 0.07, 
     fill = "orange",
     outlier.color = "red"
   ) +
+              geom_vline(xintercept = descritiva_feminicidio$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_feminicidio$Mediana,
+           y = 0.015, 
+           label = round(descritiva_feminicidio$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de mortes por causas externas de mulheres por 100 mil mulheress", 
+    title = "Boxplot e Histograma", 
     x = "Mortes por causas externas de mulheres por 100 mil mulheres",
     y = "Percentual"
   ) +
@@ -1165,15 +1369,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.3),   # Ajusta a posição para colocar no eixo y
-    width = 0.05,   # Ajusta a altura do boxplot
+    aes(y = 0.3),
+    width = 0.05,
     fill = "orange",
     outlier.color = "red"
   ) +
+                geom_vline(xintercept = descritiva_ideb_inicial$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_ideb_inicial$Mediana,
+           y = 0.015, 
+           label = round(descritiva_ideb_inicial$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de Nota do IDEB - Anos Iniciais", 
+    title = "Boxplot e Histograma", 
     x = "Nota do IDEB - Anos Iniciais",
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1214,15 +1427,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.3),   # Ajusta a posição para colocar no eixo y
-    width = 0.05,   # Ajusta a altura do boxplot
+    aes(y = 0.3),
+    width = 0.05,
     fill = "orange",
     outlier.color = "red"
   ) +
+                  geom_vline(xintercept = descritiva_ideb_final$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_ideb_final$Mediana,
+           y = 0.015, 
+           label = round(descritiva_ideb_final$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de Nota do IDEB - Anos Finais", 
+    title = "Boxplot e Histograma", 
     x = "Nota do IDEB - Anos Finais",
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1257,15 +1479,24 @@ data |>
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.5),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.5),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+                    geom_vline(xintercept = descritiva_investimento_infraestrutura$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_investimento_infraestrutura$Mediana,
+           y = 0.015, 
+           label = round(descritiva_investimento_infraestrutura$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de investimento em infraestrutura per capita", 
-    x = "Investimento em infraestrutura per capita",
-    y = "Percentual"
+    title = "Boxplot e Histograma", 
+    x = "Investimento em infraestrutura per capita (R$)",
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1294,22 +1525,31 @@ data |>
   ggplot(aes(x = equipamentos_esportivos)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 10, 
+                 bins = 20, 
                  fill = "lightblue", 
                  color = "white", 
                  alpha = 0.6) +
   scale_x_continuous(breaks = pretty_breaks(n = 15)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.7),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.7),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+                      geom_vline(xintercept = descritiva_equipamentos_esportivos$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_equipamentos_esportivos$Mediana,
+           y = 0.015, 
+           label = round(descritiva_equipamentos_esportivos$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histogramade equipamentos esportivos públicos por 100 mil habitantes", 
+    title = "Boxplot e Histograma", 
     x = "Equipamentos esportivos públicos por 100 mil habitantes",
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
@@ -1337,39 +1577,38 @@ data |>
   ggplot(aes(x = equpamentos_culturais)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 10, 
+                 bins = 15, 
                  fill = "lightblue", 
                  color = "white", 
                  alpha = 0.6) +
   scale_x_continuous(breaks = pretty_breaks(n = 15)) +
   # Boxplot
   geom_boxplot(
-    aes(y = 0.7),   # Ajusta a posição para colocar no eixo y
-    width = 0.07,   # Ajusta a altura do boxplot
+    aes(y = 0.7),
+    width = 0.07,
     fill = "orange",
     outlier.color = "red"
   ) +
+                        geom_vline(xintercept = descritiva_equipamentos_culturais$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_equipamentos_culturais$Mediana,
+           y = 0.015, 
+           label = round(descritiva_equipamentos_culturais$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
-    title = "Boxplot e Histograma de espaços culturais públicos e privados por 100 mil habitantes", 
+    title = "Boxplot e Histograma", 
     x = "Espaços culturais públicos e privados por 100 mil habitantes",
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
 
-### 3. Correlações entre variáveis
+## 3. Correlações entre variáveis
 
-#### 3.1 Atributos a nível indivíduo
-
-```{r}
-
-corr_regiao_churn <- data |> 
-  group_by(regiao_destino, churn) |> 
-  count() |> 
-  pivot_wider(names_from = churn, values_from = n) |> 
-  mutate(retencao = permanece / (permanece + migrou))
-
-```
+### 3.1 Atributos a nível indivíduo
 
 ```{r}
 
@@ -1377,14 +1616,502 @@ corr_renovacao_churn <- data |>
   group_by(Prorrogado, churn) |> 
   count() |> 
   pivot_wider(names_from = churn, values_from = n) |> 
-  mutate(retencao = permanece / (permanece + migrou))
+  mutate(retencao = round(permanece / (permanece + migrou)*100,2)) |> mutate(Prorrogado = ifelse(Prorrogado == "SIM", "Prorrogado", "Não prorrogado"))
 
+corr_renovacao_churn |> 
+  ggplot(aes(x = fct_reorder(Prorrogado, retencao, .desc = TRUE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), vjust = -1) + 
+  labs(title = "Taxa de retenção por renovação",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+
+```
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = idade_em_anos)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Idade de pessoas migraram e permanceram",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
 ```
 
 ```{r}
 
 
+data |> 
+  mutate(Prorrogado = ifelse(Prorrogado == "SIM", "Prorrogado", "Não prorrogado")) |> 
+  ggplot(aes(x = Prorrogado, y = idade_em_anos)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Idade de pessoas que renovaram ou não",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
 
 
+```
 
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = anos_formacao)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Anos de formação por pessoas migraram e permaneceram",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+  mutate(Prorrogado = ifelse(Prorrogado == "SIM", "Prorrogado", "Não prorrogado")) |> 
+  ggplot(aes(x = Prorrogado, y = anos_formacao)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)), # Mostra a mediana arredondada com uma casa decimal
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Anos de formação de pessoas que renovaram ou não",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
+
+```
+
+```{r}
+data |> 
+  ggplot(aes(x = idade_em_anos, y = anos_formacao)) +
+  geom_point() +
+  stat_cor(method = "pearson") +
+  labs(title = "Gráfico de dispersão da idade e anos de formação",
+       x = "Idade",
+       y = "Anos de formação") +
+  theme_bw()
+```
+
+### 3.2 Atributos a nível estabelecimento
+
+```{r}
+ggpairs(
+  data,
+  columns = c("agente_saude", "dentista", "enfermeiro", "tec_aux_enf", "leitos_instalacao_fisica_urgencia"),
+  upper = list(continuous = "cor"),
+  lower = list(continuous = "points")) +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = agente_saude)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Agentes de Saúde de pessoas por CNES que migraram e permaneceram",
+       x = NULL,
+       y = "Agentes Comunitários de Saúde") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = tec_aux_enf)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Tec. e Aux. de Enfermagem por CNES de pessoas que migraram e permaneceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = enfermeiro)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Enfermeiros por CNES de pessoas que migraram e permaneceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = dentista)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Cirurgiões-dentistas por CNES de pessoas que migraram e permaneceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = leitos_instalacao_fisica_urgencia)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Leitos por CNES de pessoas que migaram e permanceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+```
+
+### 3.3 Atributos a nível município
+
+```{r}
+corr_regiao_churn <- data |> 
+  group_by(regiao_destino, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = round(permanece / (migrou + permanece) * 100,0))
+
+corr_regiao_churn |> 
+  ggplot(aes(x = fct_reorder(regiao_destino, retencao, .desc = FALSE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), hjust = -0.2) + 
+  labs(title = "Taxa de retenção por região",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+```{r}
+corr_uf_churn <- data |> 
+  group_by(uf_destino, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(permanece = ifelse(is.na(permanece), 0, permanece)) |> 
+  mutate(retencao = round(permanece / (permanece + migrou) * 100,2))
+
+corr_uf_churn |> 
+  ggplot(aes(x = fct_reorder(uf_destino, retencao, .desc = FALSE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), hjust = -0.2) + 
+  labs(title = "Taxa de retenção por UF",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+```{r}
+corr_porte_churn <- data |> 
+  group_by(porte, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = round(permanece / (migrou + permanece) * 100,0)) |> 
+    mutate(porte = case_when(porte == "PP-I" ~ "Pequeno porte 1",
+                           porte == "PP-II" ~ "Pequeno porte 2",
+                           porte == "MP" ~ "Médio porte",
+                           porte == "GP" ~ "Grande porte",
+                           TRUE ~ porte))
+
+
+corr_porte_churn |> 
+  ggplot(aes(x = fct_reorder(porte, retencao, .desc = FALSE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), hjust = -0.2) + 
+  labs(title = "Taxa de retenção por porte do município",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = pib_percapita)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: PIB per capita por pessoas que migraram e permanceram",
+       x = NULL,
+       y = "PIB per capita (R$)") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = tx_pop_ocupada*100)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: taxa de ocupação por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Taxa de ocupação (%)") +
+  theme_minimal()
+```
+
+```{r}
+data |> 
+  ggplot(aes(x = churn, y = vagas_medicina_milhab)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Vagas de medicina por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Vagas de medicina") +
+  theme_minimal()
+```
+
+```{r}
+
+data |> 
+  ggplot(aes(x = churn, y = orcamento_saude)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: orçamento de saúde per capita por pessoas que migraram ou permanceram",
+       x = "Renovação",
+       y = "Orçamendo de saúde per capita") +
+  theme_minimal()
+```
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = esgotamento_sanitario)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: esgotamento sanitário por pessoas que migraram e permanceram",
+       x = NULL,
+       y = "População com esgoto sanitário (%)") +
+  theme_minimal()
+
+```
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = taxa_homicidio)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)), 
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: taxa de homicídio por pessoas que migraram e permanceram",
+       x = NULL,
+       y = "Taxa de homicídio por 100 mil hab.") +
+  theme_minimal()
+
+```
+
+```{r}
+
+data |> 
+  ggplot(aes(x = churn, y = mortes_armasdefogo)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: mortes por armas de fogo por pessoas que migraram ou permanceram",
+       x = "Renovação",
+       y = "Mortes por armas de fogo por 100 mil hab.") +
+  theme_minimal()
+
+```
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = feminicidio)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: taxa de feminicídio por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Taxa de femicídio por 100 mil hab.") +
+  theme_minimal()
+
+```
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = ideb_anosiniciais)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Nota IDEB Anos Iniciais por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Nota IDEB Anos Iniciais") +
+  theme_minimal()
+
+```
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = ideb_anosfinais)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Nota IDEB Anos Finais por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Nota IDEB Anos Finais") +
+  theme_minimal()
+```
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = investimento_infraestrutura)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Equipamentos esportivos por mil hab por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Equipamentos esportivos por mil hab") +
+  theme_minimal()
+
+```
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = equpamentos_culturais)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Equipamentos culturais por mil hab. por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Equipamentos culturais por mil hab.") +
+  theme_minimal()
 ```
