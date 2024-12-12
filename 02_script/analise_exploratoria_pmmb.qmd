@@ -125,11 +125,11 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível município
 
-+------------------------+-----------------------------------------+
-| Variáveis qualitativas | Descrição                               |
-+========================+=========================================+
-| porte                  | Porte da cidade                         |
-+------------------------+-----------------------------------------+
++------------------------+---------------------------------------+
+| Variáveis qualitativas | Descrição                             |
++========================+=======================================+
+| porte                  | Porte da cidade                       |
++------------------------+---------------------------------------+
 
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas     | Descrição                                                                                          |
@@ -169,37 +169,42 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 #### 2.1.1 Sexo
 
+O programa conta com 908 médicos (55%) e 739 médicas (45%), indicando certo grau de balanceamento por gênero.
+
 ```{r}
 
 sexo <- data |> 
-  count(sexo, name = "total") |> 
+  group_by(sexo) |> 
+  summarise(total = n()) |> 
   mutate(percentual = round(total / sum(total) * 100)) |> 
   mutate(sexo = ifelse(sexo == "Female", "Feminino", "Masculino"))
 
 
 sexo |> 
-  ggplot(aes(x = "", y = percentual, fill = sexo)) + 
-  geom_bar(stat = "identity", width = 1) +          
-  coord_polar("y", start = 0) +  
-  geom_text(aes(label = paste0(percentual, "%")),
+  ggplot(aes(x = "", y = percentual, fill = sexo)) +
+  geom_bar(stat = "identity", widht = 1) + 
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
             position = position_stack(vjust = 0.5)) +
-  labs(fill = "Sexo") + 
+  labs(fill = "Atuação prévia no município?") +
   theme_void()
 ```
 
 #### 2.1.2 Atuação prévia
 
+Dos 1647 médicos participantes do programa, 190 (11,5%) já havia atuado anteriormente no município em que foi destinado.
+
 ```{r}
 
 atuacao_previa <- data |> 
   count(atuacao_previa_no_municipio, name = "total") |> 
-  mutate(percentual = round(total / sum(total) * 100))
+  mutate(percentual = round(total / sum(total) * 100,1))
 
 atuacao_previa |> 
   ggplot(aes(x = "", y = percentual, fill = atuacao_previa_no_municipio)) +
   geom_bar(stat = "identity", widht = 1) + 
   coord_polar("y", start = 0) +
-  geom_text(aes(label = paste0(percentual, "%")),
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
             position = position_stack(vjust = 0.5)) +
   labs(fill = "Atuação prévia no município?") +
   theme_void()
@@ -207,10 +212,9 @@ atuacao_previa |>
 
 #### 2.1.3 Localidade em que o médico foi designado
 
+O código abaixo mostra quais as localidades em que os médicos foram destinados, primeiro por região e depois por unidade federativa. Os Estados do nordeste concentram a maior parte dos médicos participantes.
+
 ```{r}
-uf_destino <- data |> 
-  count(uf_destino, name = "total") |> 
-  mutate(percentual = round(total / sum(total) * 100,2))
 
 data <- data |>  
   mutate(regiao_destino = case_when(
@@ -230,8 +234,27 @@ regiao_destino |>
   geom_col(fill = "lightblue",
            alpha = 0.9) + 
   coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Região de destino",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+```{r}
+
+uf_destino <- data |> 
+  count(uf_destino, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2))
+
+uf_destino |> 
+  ggplot(aes(x = fct_reorder(uf_destino, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
   scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-  geom_text(aes(label = paste0(percentual, "%")), hjust = -0.2) + 
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
   labs(title = "Região de destino",
        x = NULL, 
        y = NULL) + 
@@ -239,6 +262,8 @@ regiao_destino |>
 ```
 
 #### 2.1.4 Renovação
+
+A variável renovação indica indica os médicos que tiveram a permanência no programa prorrogadas por mais um ano, totalizando 4 anos.
 
 ```{r}
 renovacao <- data |> 
@@ -249,12 +274,14 @@ renovacao |>
   ggplot(aes(x = "", y = percentual, fill = Prorrogado)) +
   geom_bar(stat = "identity", width = 1) +
   coord_polar("y", start = 0) +
-  geom_text(aes(label = paste0(percentual, "%")),
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
             position = position_stack(vjust = 0.5)) +
   theme_void()
 ```
 
 #### 2.1.5 Churn
+
+A variável churn como descrito anteriormente, indica quantos profissionais permaneceram nas cidades em que foram destinados e quantos migraram após um período de 4,5 anos. Observa-se também um balanceamento por churn, com 51% de retenção.
 
 ```{r}
 churn <- data |> 
@@ -265,12 +292,14 @@ churn |>
   ggplot(aes(x = "", y = percentual, fill = churn)) +
   geom_bar(stat = "identity", width = 1) +
   coord_polar("y", start = 0) +
-  geom_text(aes(label = paste0(percentual, "%")),
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
             position = position_stack(vjust = 0.5)) +
   theme_void()
 ```
 
 #### 2.1.6 Anos de atuação no município antes do programa
+
+Dentro os 190 médicos que já haviam atuado no município em que foram destinados, a mediana dos anos de atuação foi de 1,75.
 
 ```{r}
 
@@ -290,6 +319,9 @@ descritiva_anos_atuacao <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_anos_atuacao <- data |> 
+  filter(anos_atuacao_mesmo_municipio > descritiva_anos_atuacao$Limite_superior)
 
 data |> 
   filter(atuacao_previa_no_municipio == "Sim") |> 
@@ -324,6 +356,8 @@ data |>
 
 #### 2.1.7 Idade
 
+Pelo código abaixo, observa-se que a mediana da idade dos participantes ao ingressar no programa foi de 32,4 anos.
+
 ```{r}
 descritiva_idade <- data |>
   summarise(
@@ -340,6 +374,9 @@ descritiva_idade <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_idade <- data |> 
+  filter(idade_em_anos > descritiva_idade$Limite_superior)
   
 
 data |> 
@@ -377,6 +414,8 @@ data |>
 
 #### 2.1.7 Anos de formação
 
+A referida variável denota os anos de formação que os médicos tinham ao ingressar no programa. Observa-se que, em geral, são de profissionais recém-formados com uma mediana de 1,7 anos.
+
 ```{r}
 descritiva_anos_formacao <- data |> 
   summarise(
@@ -394,6 +433,8 @@ descritiva_anos_formacao <- data |>
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
 
+outlier_anos_formacao <- data |> 
+  filter(anos_formacao > descritiva_anos_formacao$Limite_superior)
 
 data |> 
   ggplot(aes(x = anos_formacao)) + 
@@ -426,11 +467,15 @@ data |>
     y = "Percentual"
   ) +
   theme_minimal()
+
+
 ```
 
 ### 2.2 Atributos a nível estabelecimento
 
 #### 2.2.1 Tipo de estabelecimento
+
+A ampla maioria dos médicos foram desginados para unidades básicas de saúde, no entanto, todos os estabelecimentos são da atenção primária de saúde.
 
 ```{r}
 tipo_estabelecimento <- data |> 
@@ -447,8 +492,8 @@ tipo_estabelecimento |>
   geom_col(fill = "lightblue",
            alpha = 0.9) + 
   coord_flip() +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-  geom_text(aes(label = paste0(percentual, "%")), hjust = -0.2) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.5))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
   labs(title = "Tipo de estabelecimento",
        x = NULL, 
        y = NULL) + 
@@ -456,6 +501,8 @@ tipo_estabelecimento |>
 ```
 
 #### 2.2.2 Agentes comunitários de saúde
+
+Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 7,2 agentes comunitários de saúde.
 
 ```{r}
 #*Há presença de um valor ausente*
@@ -475,6 +522,9 @@ descritiva_acs <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_acs <- data |> 
+  filter(agente_saude > descritiva_acs$Limite_superior)
 
 data |> 
   ggplot(aes(x = agente_saude)) + 
@@ -511,6 +561,10 @@ data |>
 
 #### 2.2.3 Cirurgiões-dentistas
 
+Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 7,2 agentes comunitários de saúde.
+
+(fazer por região, churn)
+
 ```{r}
 descritiva_dentistas <- data |> 
   summarise(
@@ -527,6 +581,9 @@ descritiva_dentistas <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_dentistas <- data |> 
+  filter(dentista > descritiva_dentistas$Limite_superior | dentista < descritiva_dentistas$Limite_inferior)
 
 data |> 
   ggplot(aes(x = dentista)) + 
@@ -563,6 +620,8 @@ data |>
 
 #### 2.2.4 Enfermeiros
 
+Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 1,3 enfermeiros.
+
 ```{r}
 descritiva_enfermeiros <- data |> 
   summarise(
@@ -579,6 +638,9 @@ descritiva_enfermeiros <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_enfermeiros <- data |> 
+  filter(enfermeiro > descritiva_enfermeiros$Limite_superior)
 
 data |> 
   ggplot(aes(x = enfermeiro)) + 
@@ -615,6 +677,8 @@ data |>
 
 #### 2.2.5 Técnicos e Auxiliares de enfermagem
 
+Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 2,3 técnicos e auxiliares de enfermagem.
+
 ```{r}
 descritiva_tec_aux_enf <- data |> 
   summarise(
@@ -631,6 +695,9 @@ descritiva_tec_aux_enf <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_tec_aux_enf <- data |> 
+  filter(tec_aux_enf > descritiva_tec_aux_enf$Limite_superior)
 
 data |> 
   ggplot(aes(x = tec_aux_enf)) + 
@@ -665,51 +732,9 @@ data |>
   theme_minimal()
 ```
 
-#### 2.2.6 Leitos hospitalar cirúrgico, clínico e complementar
-
-```{r}
-descritiva_leitos_cirurgico_clinico_complementar <- data |> 
-  summarise(
-    Mínimo = min(leitos_hospitalares_cirurgico_clinico_complementar, na.rm = TRUE),
-    Q1 = quantile(leitos_hospitalares_cirurgico_clinico_complementar, 0.25, na.rm =TRUE),
-    Mediana = median(leitos_hospitalares_cirurgico_clinico_complementar, na.rm = TRUE),
-    Q3 = quantile(leitos_hospitalares_cirurgico_clinico_complementar, 0.75, na.rm = TRUE),
-    Máximo = max(leitos_hospitalares_cirurgico_clinico_complementar, na.rm = TRUE)
-  ) |> 
-  mutate(
-    IQR = Q3 - Q1,
-    Limite_inferior = Q1 - 1.5 * IQR,
-    Limite_superior = Q3 + 1.5 * IQR
-  ) |> 
-  select(-IQR) |> 
-  relocate(Limite_inferior, .before = Mínimo)
-
-
-data |> 
-  ggplot(aes(x = leitos_hospitalares_cirurgico_clinico_complementar)) + 
-  # Histograma
-  geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 10, 
-                 fill = "lightblue", 
-                 color = "white", 
-                 alpha = 0.6) +
-  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
-  # Boxplot
-  geom_boxplot(
-    aes(y = 0.65),
-    width = 0.09,
-    fill = "orange",
-    outlier.color = "red"
-  ) +
-  labs(
-    title = "Boxplot e Histograma", 
-    x = "Leitos hospitalares cirurgico, clinico ecomplementar", 
-    y = "Percentual"
-  ) +
-  theme_minimal()
-```
-
 #### 2.2.7 Leitos instalação física urgência
+
+Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 6 leitos de urgência.
 
 ```{r}
 descritiva_leitos_instalacao_fisica_urgencia <- data |> 
@@ -727,6 +752,9 @@ descritiva_leitos_instalacao_fisica_urgencia <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_leitos <- data |> 
+  filter(leitos_instalacao_fisica_urgencia > descritiva_leitos_instalacao_fisica_urgencia$Limite_superior)
 
 data |> 
   ggplot(aes(x = leitos_instalacao_fisica_urgencia)) + 
@@ -763,96 +791,17 @@ data |>
 
 ```
 
-#### 2.2.8 Leitos instalação física ambulatorial
-
-```{r}
-descritiva_leitos_instalacao_fisica_ambulatorial <- data |> 
-  summarise(
-    Mínimo = min(leitos_instalacao_fisica_ambulatorial, na.rm = TRUE),
-    Q1 = quantile(leitos_instalacao_fisica_ambulatorial, 0.25, na.rm =TRUE),
-    Mediana = median(leitos_instalacao_fisica_ambulatorial, na.rm = TRUE),
-    Q3 = quantile(leitos_instalacao_fisica_ambulatorial, 0.75, na.rm = TRUE),
-    Máximo = max(leitos_instalacao_fisica_ambulatorial, na.rm = TRUE)
-  ) |> 
-  mutate(
-    IQR = Q3 - Q1,
-    Limite_inferior = Q1 - 1.5 * IQR,
-    Limite_superior = Q3 + 1.5 * IQR
-  ) |> 
-  select(-IQR) |> 
-  relocate(Limite_inferior, .before = Mínimo)
-
-
-data |> 
-  ggplot(aes(x = leitos_instalacao_fisica_ambulatorial)) + 
-  # Histograma
-  geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 10, 
-                 fill = "lightblue", 
-                 color = "white", 
-                 alpha = 0.6) +
-  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
-  # Boxplot
-  geom_boxplot(
-    aes(y = 0.75),
-    width = 0.09,
-    fill = "orange",
-    outlier.color = "red"
-  ) +
-  labs(
-    title = "Boxplot e Histograma", 
-    x = "Leitos instalacao fisica ambulatorial", 
-    y = "Percentual"
-  ) +
-  theme_minimal()
-```
-
-#### 2.2.9 Leitos instalação física cirúrgico
-
-```{r}
-descritiva_leitos_instalacao_fisica_obstetrico <- data |> 
-  summarise(
-    Mínimo = min(leitos_instalacao_fisica_obstetrico, na.rm = TRUE),
-    Q1 = quantile(leitos_instalacao_fisica_obstetrico, 0.25, na.rm =TRUE),
-    Mediana = median(leitos_instalacao_fisica_obstetrico, na.rm = TRUE),
-    Q3 = quantile(leitos_instalacao_fisica_obstetrico, 0.75, na.rm = TRUE),
-    Máximo = max(leitos_instalacao_fisica_obstetrico, na.rm = TRUE)
-  ) |> 
-  mutate(
-    IQR = Q3 - Q1,
-    Limite_inferior = Q1 - 1.5 * IQR,
-    Limite_superior = Q3 + 1.5 * IQR
-  ) |> 
-  select(-IQR) |> 
-  relocate(Limite_inferior, .before = Mínimo)
-
-data |> 
-  ggplot(aes(x = leitos_instalacao_fisica_obstetrico)) + 
-  # Histograma
-  geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 10, 
-                 fill = "lightblue", 
-                 color = "white", 
-                 alpha = 0.6) +
-  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
-  # Boxplot
-  geom_boxplot(
-    aes(y = 0.75),
-    width = 0.09, 
-    fill = "orange",
-    outlier.color = "red"
-  ) +
-  labs(
-    title = "Boxplot e Histograma de leitos instalacao fisica obstétrico", 
-    x = "Leitos instalacao fisica obstétrico", 
-    y = "Percentual"
-  ) +
-  theme_minimal()
-```
-
 ### 2.3 Atributos a nível município
 
 #### 2.3.1 Porte da cidade
+
+O porte dos município é classificado de acordo com sua população:
+
+Pequeno Porte I: Até 20.000 habitantes.\
+Pequeno Porte II: Entre 20.000 e 50.000 habitantes.\
+Médio Porte: Entre 50.000 e 100.000 habitantes.\
+Grande Porte: Entre 100.000 e 900.000 habitantes.\
+Metrópole: Mais de 900.000 habitantes.
 
 ```{r}
 porte <- data |> 
@@ -869,8 +818,8 @@ porte |>
   geom_col(fill = "lightblue",
            alpha = 0.9) + 
   coord_flip() +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-  geom_text(aes(label = paste0(percentual, "%")), hjust = -0.2) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.25))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
   labs(title = "Porte do município",
        x = NULL, 
        y = NULL) + 
@@ -878,6 +827,8 @@ porte |>
 ```
 
 #### 2.3.2 Produto Interno Bruto (PIB) per capita (R\$)
+
+A mediana do PIB per capita dos municípios que receberam médicos do programa foi de R\$ 15.519,00
 
 ```{r}
 descritiva_pib_percapita <- data |> 
@@ -895,6 +846,9 @@ descritiva_pib_percapita <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_pib_percapita <- data |> 
+  filter(pib_percapita > descritiva_pib_percapita$Limite_superior)
 
 data |> 
   ggplot(aes(x = pib_percapita)) + 
@@ -931,8 +885,11 @@ data |>
 
 #### 2.3.3 Taxa de ocupação da população (%)
 
+A mediana da taxa de ocupação dos municípios que receberam médicos do programa foi de 12,13%.
+
 ```{r}
 descritiva_tx_pop_ocupada <- data |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100) |> 
   summarise(
     Mínimo = min(tx_pop_ocupada, na.rm = TRUE),
     Q1 = quantile(tx_pop_ocupada, 0.25, na.rm =TRUE),
@@ -948,8 +905,13 @@ descritiva_tx_pop_ocupada <- data |>
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
 
+outlier_tx_ocupacao <- data |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100) |> 
+  filter(tx_pop_ocupada > descritiva_tx_pop_ocupada$Limite_superior)
+
 
 data |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100) |> 
   ggplot(aes(x = tx_pop_ocupada)) + 
   # Histograma
   geom_histogram(aes(y = ..count../sum(..count..)), 
@@ -977,12 +939,14 @@ data |>
   labs(
     title = "Boxplot e Histograma", 
     x = "Taxa de população ocupada", 
-    y = "Percentual"
+    y = "Densidade"
   ) +
   theme_minimal()
 ```
 
 #### 2.3.4 Taxa da população que possui plano de saúde (%)
+
+A mediana da taxa de cobertura de plano de saúde dos municípios que receberam médicos do programa foi de 7,12%.
 
 ```{r}
 descritiva_cobertura_plano_saude <- data |> 
@@ -1000,6 +964,9 @@ descritiva_cobertura_plano_saude <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_cobertura_plano_saude <- data |> 
+  filter(cobertura_saude > descritiva_cobertura_plano_saude$Limite_superior)
 
 data |> 
   ggplot(aes(x = cobertura_saude)) + 
@@ -1036,8 +1003,11 @@ data |>
 
 #### 2.3.5 Quantidade de vagas de medicina em faculdades no município
 
+Dos 1.058 municípios que receberam médicos do programa, 362 haviam vagas em cursos de medicina.
+
 ```{r}
 descritiva_vagas_medicina <- data |> 
+  distinct(ibge_aloc, vagas_medicina_milhab) |> 
   summarise(
     Mínimo = min(vagas_medicina_milhab, na.rm = TRUE),
     Q1 = quantile(vagas_medicina_milhab, 0.25, na.rm =TRUE),
@@ -1052,6 +1022,9 @@ descritiva_vagas_medicina <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_vagas_medicina <- data |> 
+  filter(vagas_medicina_milhab > descritiva_vagas_medicina$Limite_superior)
 
 data |> 
   ggplot(aes(x = vagas_medicina_milhab)) + 
@@ -1069,6 +1042,15 @@ data |>
     fill = "orange",
     outlier.color = "red"
   ) +
+        geom_vline(xintercept = descritiva_vagas_medicina$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_vagas_medicina$Mediana,
+           y = 0.015, 
+           label = round(descritiva_vagas_medicina$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
   labs(
     title = "Boxplot e Histogramas", 
     x = "Vagas de medicina por mil habitantes", 
@@ -1079,7 +1061,7 @@ data |>
 
 #### 2.3.6 Orçamento destinado a saúde per capita (R\$)
 
-tem 2 NA's
+A mediana do gasto público com saúde per capita dos municípios que receberam médicos do programa foi de R\$ 634,00.
 
 ```{r}
 descritiva_orcamento_saude <- data |> 
@@ -1098,6 +1080,8 @@ descritiva_orcamento_saude <- data |>
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
 
+outlier_orcamento_saude <- data |> 
+  filter(orcamento_saude > descritiva_orcamento_saude$Limite_superior)
 
 data |> 
   ggplot(aes(x = orcamento_saude)) + 
@@ -1134,6 +1118,8 @@ data |>
 
 #### 2.3.7 População total atendida com esgotamento sanitário (%)
 
+A mediana da cobertura populacional de esgotamento sanitário dos municípios que receberam médicos do programa foi de 10,8%.
+
 ```{r}
 descritiva_esgoto <- data |> 
   summarise(
@@ -1149,8 +1135,7 @@ descritiva_esgoto <- data |>
     Limite_superior = Q3 + 1.5 * IQR
   ) |> 
   select(-IQR) |> 
-  relocate(Limite_inferior, .before = Mínimo)
-
+  relocate(Limite_inferior, .before = Mínimo)                                                                                                                                      
 data |> 
   ggplot(aes(x = esgotamento_sanitario)) + 
   # Histograma
@@ -1171,7 +1156,7 @@ data |>
   annotate("text",
            x = 	descritiva_esgoto$Mediana,
            y = 0.015, 
-           label = round(descritiva_esgoto$Mediana,0),
+           label = round(descritiva_esgoto$Mediana,1),
            angle = 90,
            vjust = -0.5,
            size = 3.5,
@@ -1185,6 +1170,8 @@ data |>
 ```
 
 #### 2.3.8 Número de mortes por homicídio por 100 mil habitantes
+
+A mediana das mortes por homicídio por 100 mil habitantes dos municípios que receberam médicos do programa foi de 24.
 
 ```{r}
 descritiva_homicidio <- data |> 
@@ -1202,6 +1189,9 @@ descritiva_homicidio <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_homicidio <- data |> 
+  filter(taxa_homicidio > descritiva_homicidio$Limite_superior)
 
 data |> 
   ggplot(aes(x = taxa_homicidio)) + 
@@ -1223,7 +1213,7 @@ data |>
   annotate("text",
            x = 	descritiva_homicidio$Mediana,
            y = 0.015, 
-           label = round(descritiva_homicidio$Mediana,0),
+           label = round(descritiva_homicidio$Mediana,1),
            angle = 90,
            vjust = -0.5,
            size = 3.5,
@@ -1236,106 +1226,11 @@ data |>
   theme_minimal()
 ```
 
-#### 2.3.9 Número de mortes por armas de fogo por 100 mil habitantes
-
-```{r}
-
-descritiva_mortes_armasdefogo <- data |> 
-  summarise(
-    Mínimo = min(mortes_armasdefogo, na.rm = TRUE),
-    Q1 = quantile(mortes_armasdefogo, 0.25, na.rm =TRUE),
-    Mediana = median(mortes_armasdefogo, na.rm = TRUE),
-    Q3 = quantile(mortes_armasdefogo, 0.75, na.rm = TRUE),
-    Máximo = max(mortes_armasdefogo, na.rm = TRUE)
-  ) |> 
-  mutate(
-    IQR = Q3 - Q1,
-    Limite_inferior = Q1 - 1.5 * IQR,
-    Limite_superior = Q3 + 1.5 * IQR
-  ) |> 
-  select(-IQR) |> 
-  relocate(Limite_inferior, .before = Mínimo)
-
-data |> 
-  ggplot(aes(x = mortes_armasdefogo)) + 
-  # Histograma
-  geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 15, 
-                 fill = "lightblue", 
-                 color = "white", 
-                 alpha = 0.6) +
-  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
-  # Boxplot
-  geom_boxplot(
-    aes(y = 0.85),
-    width = 0.07,
-    fill = "orange",
-    outlier.color = "red"
-  ) +
-  labs(
-    title = "Boxplot e Histograma", 
-    x = "Mortes por armas de fogo por 100 mil habitantes",
-    y = "Densidade"
-  ) +
-  theme_minimal()
-```
-
-#### 2.3.10 Mortes por causas externas de mulheres por 100 mil mulheres
-
-```{r}
-
-descritiva_feminicidio <- data |> 
-  summarise(
-    Mínimo = min(feminicidio, na.rm = TRUE),
-    Q1 = quantile(feminicidio, 0.25, na.rm =TRUE),
-    Mediana = median(feminicidio, na.rm = TRUE),
-    Q3 = quantile(feminicidio, 0.75, na.rm = TRUE),
-    Máximo = max(feminicidio, na.rm = TRUE)
-  ) |> 
-  mutate(
-    IQR = Q3 - Q1,
-    Limite_inferior = Q1 - 1.5 * IQR,
-    Limite_superior = Q3 + 1.5 * IQR
-  ) |> 
-  select(-IQR) |> 
-  relocate(Limite_inferior, .before = Mínimo)
-
-data |> 
-  ggplot(aes(x = feminicidio)) + 
-  # Histograma
-  geom_histogram(aes(y = ..count../sum(..count..)), 
-                 bins = 15, 
-                 fill = "lightblue", 
-                 color = "white", 
-                 alpha = 0.6) +
-  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
-  # Boxplot
-  geom_boxplot(
-    aes(y = 0.5),
-    width = 0.07, 
-    fill = "orange",
-    outlier.color = "red"
-  ) +
-              geom_vline(xintercept = descritiva_feminicidio$Mediana, linetype = "dashed", color = "blue") +
-  annotate("text",
-           x = 	descritiva_feminicidio$Mediana,
-           y = 0.015, 
-           label = round(descritiva_feminicidio$Mediana,0),
-           angle = 90,
-           vjust = -0.5,
-           size = 3.5,
-           color = "blue") +
-  labs(
-    title = "Boxplot e Histograma", 
-    x = "Mortes por causas externas de mulheres por 100 mil mulheres",
-    y = "Percentual"
-  ) +
-  theme_minimal()
-```
-
 #### 2.3.11 Nota do IDEB - Rede municipal - Anos Iniciais
 
 Tem 25 NA's
+
+A mediana da nota IDEB de anos iniciais dos municípios que receberam médicos do programa foi de 5,4.
 
 ```{r}
 data |> 
@@ -1357,6 +1252,9 @@ descritiva_ideb_inicial <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_ideb_inicial <- data |> 
+  filter(ideb_anosiniciais > descritiva_ideb_inicial$Limite_superior)
 
 data |> 
   ggplot(aes(x = ideb_anosiniciais)) + 
@@ -1395,6 +1293,8 @@ data |>
 
 Tem 279 NA's
 
+A mediana da nota IDEB de anos finais dos municípios que receberam médicos do programa foi de 4,4.
+
 ```{r}
 data |> 
   filter(is.na(ideb_anosfinais)) |> 
@@ -1415,6 +1315,9 @@ descritiva_ideb_final <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_ideb_final <- data |> 
+  filter(ideb_anosfinais > descritiva_ideb_final$Limite_superior)
 
 data |> 
   ggplot(aes(x = ideb_anosfinais)) + 
@@ -1451,6 +1354,8 @@ data |>
 
 #### 2.3.13 Valor do investimento público em infraestrutura per capita (R\$)
 
+A mediana da investimento em infraestrutura per capita dos municípios que receberam médicos do programa foi de R\$ 2.614,00.
+
 ```{r}
 descritiva_investimento_infraestrutura <- data |> 
   summarise(
@@ -1467,6 +1372,9 @@ descritiva_investimento_infraestrutura <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_investimento_infraestrutura <- data |> 
+  filter(investimento_infraestrutura > descritiva_investimento_infraestrutura$Limite_superior)
 
 data |> 
   ggplot(aes(x = investimento_infraestrutura)) + 
@@ -1503,6 +1411,8 @@ data |>
 
 #### 2.3.14 Número de equipamentos esportivos públicos por 100 mil habitantes
 
+A mediana de equipamentos esportivos por 100 mil habitantes dos municípios que receberam médicos do programa foi de 4,2.
+
 ```{r}
 
 descritiva_equipamentos_esportivos <- data |> 
@@ -1520,6 +1430,9 @@ descritiva_equipamentos_esportivos <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_equipamentos_esportivos <- data |> 
+  filter(equipamentos_esportivos > descritiva_equipamentos_esportivos$Limite_superior)
 
 data |> 
   ggplot(aes(x = equipamentos_esportivos)) + 
@@ -1556,6 +1469,8 @@ data |>
 
 #### 2.3.15 Número de espaços culturais públicos e privados por 100 mil habitantes
 
+A mediana de espaços culturais por 100 mil habitantes dos municípios que receberam médicos do programa foi de 5,5.
+
 ```{r}
 descritiva_equipamentos_culturais <- data |> 
   summarise(
@@ -1572,6 +1487,9 @@ descritiva_equipamentos_culturais <- data |>
   ) |> 
   select(-IQR) |> 
   relocate(Limite_inferior, .before = Mínimo)
+
+outlier_equipamentos_culturais <- data |> 
+  filter(equpamentos_culturais > descritiva_equipamentos_culturais$Limite_superior)
 
 data |> 
   ggplot(aes(x = equpamentos_culturais)) + 
@@ -1593,7 +1511,7 @@ data |>
   annotate("text",
            x = 	descritiva_equipamentos_culturais$Mediana,
            y = 0.015, 
-           label = round(descritiva_equipamentos_culturais$Mediana,2),
+           label = round(descritiva_equipamentos_culturais$Mediana,1),
            angle = 90,
            vjust = -0.5,
            size = 3.5,
