@@ -125,11 +125,11 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível município
 
-+------------------------+---------------------------------------+
-| Variáveis qualitativas | Descrição                             |
-+========================+=======================================+
-| porte                  | Porte da cidade                       |
-+------------------------+---------------------------------------+
++------------------------+--------------------------------------+
+| Variáveis qualitativas | Descrição                            |
++========================+======================================+
+| porte                  | Porte da cidade                      |
++------------------------+--------------------------------------+
 
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas     | Descrição                                                                                          |
@@ -1524,9 +1524,29 @@ data |>
   theme_minimal()
 ```
 
-## 3. Correlações entre variáveis
+##  3. Correlações entre variáveis
 
 ### 3.1 Atributos a nível indivíduo
+
+```{r}
+corr_sexo_churn <- data %>% 
+  group_by(sexo, churn) %>% 
+  count() %>% 
+  pivot_wider(names_from = churn, values_from = n) %>% 
+  mutate(retencao  = round(permanece/(migrou + permanece)*100,2)) %>% 
+  mutate(sexo = ifelse(sexo == "Female", "Feminino", "Masculino"))
+
+corr_sexo_churn |> 
+  ggplot(aes(x = fct_reorder(sexo, retencao, .desc = TRUE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), vjust = -1) + 
+  labs(title = "Taxa de retenção por sexo",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
 
 ```{r}
 
@@ -1552,6 +1572,25 @@ corr_renovacao_churn |>
 ```{r}
 data |> 
   mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = media_vinculos)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Média de vínculos de pessoas migraram e permanceram",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
+
+```
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
   ggplot(aes(x = churn, y = idade_em_anos)) + 
   geom_boxplot(fill = "lightblue") +
   stat_summary(
@@ -1565,28 +1604,6 @@ data |>
        x = NULL,
        y = "Idade") +
   theme_minimal()
-```
-
-```{r}
-
-
-data |> 
-  mutate(Prorrogado = ifelse(Prorrogado == "SIM", "Prorrogado", "Não prorrogado")) |> 
-  ggplot(aes(x = Prorrogado, y = idade_em_anos)) + 
-  geom_boxplot(fill = "lightblue") +
-  stat_summary(
-    fun = median, 
-    geom = "text", 
-    aes(label = round(..y.., 1)),
-    vjust = -0.5, 
-    color = "black"
-  ) +
-  labs(title = "Boxplot: Idade de pessoas que renovaram ou não",
-       x = NULL,
-       y = "Idade") +
-  theme_minimal()
-
-
 ```
 
 ```{r}
@@ -1605,25 +1622,6 @@ data |>
        x = NULL,
        y = "Idade") +
   theme_minimal()
-```
-
-```{r}
-data |> 
-  mutate(Prorrogado = ifelse(Prorrogado == "SIM", "Prorrogado", "Não prorrogado")) |> 
-  ggplot(aes(x = Prorrogado, y = anos_formacao)) + 
-  geom_boxplot(fill = "lightblue") +
-  stat_summary(
-    fun = median, 
-    geom = "text", 
-    aes(label = round(..y.., 1)), # Mostra a mediana arredondada com uma casa decimal
-    vjust = -0.5, 
-    color = "black"
-  ) +
-  labs(title = "Boxplot: Anos de formação de pessoas que renovaram ou não",
-       x = NULL,
-       y = "Idade") +
-  theme_minimal()
-
 ```
 
 ```{r}
