@@ -6,7 +6,7 @@ editor: visual
 
 # Análise Exploratória de Dados: Programa Mais Médicos para o Brasil (pmmb)
 
-Nesse script será realizada a análise exploratória de dados da base tratada em outro script do Programa Mais Médicos para o Brasil (pmmb).
+Nesse script será realizada a análise exploratória de dados da base tratada em outro script do Programa Mais Médicos para o Brasil (pmmb), afim de entender o comportamento das variáveis. Os dados são referentes aos médicos participantes do 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019) do pmmb.
 
 A análise será realizada seguindo as seguintes etapas:
 
@@ -14,9 +14,11 @@ A análise será realizada seguindo as seguintes etapas:
 
 -   Medidas de tendência central;
 
--   Correlações entre as variáveis.
+-   Correlações entre as variáveis;
 
-As variáveis são divididas em níveis de atributos: indivíduo, estabelecimento e município. A análise seguirá respeitando essa estrutura. Os dados são referentes aos médicos participantes do 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019) do pmmb.
+-   Diagrama de de fluxo (Sankey).
+
+Assim, iniciaremos caracterizando as variáveis e examinando sua distribuição por meio de gráficos como boxplots, histogramas e identificação de outliers. Em seguida, realizaremos uma análise desagregada considerando o churn, ou seja, distinguindo entre médicos que permaneceram ou migraram, respeitando a estrututura de atributos relacionados ao indivíduo, estabelecimento e município. E por fim, o diagrama de Sankey para entender como os profissionais transitaram no território brasileiro por região no período de 4,5 anos após o início do programa.
 
 Abaixo as bibliotecas que serão utilizadas.
 
@@ -35,9 +37,13 @@ library(patchwork)
 library(scales)
 library(ggpubr)
 library(GGally)
+library(networkD3)
+library(htmlwidgets)
+library(plotly)
 
-
-
+#install.packages("plotly")
+#install.packages("htmlwidgets")
+#install.packages("networkD3")
 #install.packages("datawizard")
 #psych::describe(data$tec_aux_enf)
 ```
@@ -125,11 +131,9 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 
 ### 1.2 Atributos a nível município
 
-+------------------------+--------------------------------------+
-| Variáveis qualitativas | Descrição                            |
-+========================+======================================+
-| porte                  | Porte da cidade                      |
-+------------------------+--------------------------------------+
+| Variáveis qualitativas | Descrição       |
+|------------------------|-----------------|
+| porte                  | Porte da cidade |
 
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas     | Descrição                                                                                          |
@@ -255,7 +259,7 @@ uf_destino |>
   coord_flip() +
   scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
   geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
-  labs(title = "Região de destino",
+  labs(title = "Estado de destino",
        x = NULL, 
        y = NULL) + 
   theme_minimal()
@@ -1524,16 +1528,73 @@ data |>
   theme_minimal()
 ```
 
-##  3. Correlações entre variáveis
+#### 2.3.16 Distância da Capital
+
+```{r}
+descritiva_distancia_capital <- data |> 
+  summarise(
+    Mínimo = min(distancia_capital, na.rm = TRUE),
+    Q1 = quantile(distancia_capital, 0.25, na.rm =TRUE),
+    Mediana = median(distancia_capital, na.rm = TRUE),
+    Q3 = quantile(distancia_capital, 0.75, na.rm = TRUE),
+    Máximo = max(distancia_capital, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_distancia_capital <- data |> 
+  filter(distancia_capital > descritiva_distancia_capital$Limite_superior)
+
+data |> 
+  ggplot(aes(x = distancia_capital)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 20, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 15)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                      geom_vline(xintercept = descritiva_distancia_capital$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_distancia_capital$Mediana,
+           y = 0.015, 
+           label = round(descritiva_distancia_capital$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Distância da capital (km)",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+## 3. Correlações entre variáveis
 
 ### 3.1 Atributos a nível indivíduo
+
+O código abaixo mostra o percentual de médicos que permaneceram nas cidades em que foram designados desagregado por sexo, isto é, a retenção. No entanto, a falta de significância estatística no teste fisher, indica que não há associação entre as variáveis sexo e churn.
 
 ```{r}
 corr_sexo_churn <- data %>% 
   group_by(sexo, churn) %>% 
   count() %>% 
   pivot_wider(names_from = churn, values_from = n) %>% 
-  mutate(retencao  = round(permanece/(migrou + permanece)*100,2)) %>% 
+  mutate(retencao  = round(permanece/(migrou + permanece)*100,2)) %>%
   mutate(sexo = ifelse(sexo == "Female", "Feminino", "Masculino"))
 
 corr_sexo_churn |> 
@@ -1546,7 +1607,12 @@ corr_sexo_churn |>
        x = NULL, 
        y = NULL) + 
   theme_minimal()
+
+
+fisher.test(corr_sexo_churn[, c("migrou", "permanece")])
 ```
+
+A seguir, é observada a retenção de acordo com profissionais que prorrogaram a permanência no programa conforme edital. A retenção de médicos foi maior entre aqueles que não renovaram a permanência do programa com 71%, em comparação aos que renovaram, que apenas 21% permanceram após 4,5 anos.
 
 ```{r}
 
@@ -1567,11 +1633,15 @@ corr_renovacao_churn |>
        y = NULL) + 
   theme_minimal()
 
+
+fisher.test(corr_renovacao_churn[, c("migrou", "permanece")])
 ```
+
+Abaixo, é gerado boxplot da médica de vínculos desagregado pelo churn (retenção). É aplicado o teste de distribuição de probalidade Shapiro-Wilk no qual o p valor significativo indica que não segue normalidade. E dado a não normalidade dos dados, é aplicado o teste de Mann-Whitney para comparar duas amostras (migrou e permance), e o p-valor significativo indica diferença estatística.
 
 ```{r}
 data |> 
-  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
   ggplot(aes(x = churn, y = media_vinculos)) + 
   geom_boxplot(fill = "lightblue") +
   stat_summary(
@@ -1586,7 +1656,13 @@ data |>
        y = "Idade") +
   theme_minimal()
 
+shapiro.test(data$media_vinculos)
+
+wilcox.test(media_vinculos ~ churn, data = data, 
+                         alternative = "two.sided")
 ```
+
+A seguir é gerado boxplot para idade dos médicos desagregado pelo churn. O teste de Shapiro-Wilk indica não normalidade da distribuição, e o teste Mann-Whitney aponta para diferença estatística entre os dois grupos (migrou e permanece). Observa-se que médicos que permaneceram são mais jovens comparado aos que migraram.
 
 ```{r}
 data |> 
@@ -1604,7 +1680,14 @@ data |>
        x = NULL,
        y = "Idade") +
   theme_minimal()
+
+shapiro.test(data$idade_em_anos)
+
+wilcox.test(idade_em_anos ~ churn, data = data, 
+                         alternative = "two.sided")
 ```
+
+Seguindo a mesma lógica da idade, é gerado boxplot desagregado por churn dos anos de formação ao ingressar no programa. O teste Shapiro-Wilk indica não normalidade, e o Mann-Whitney aponta diferença estatística. Os resultados mostram que os médicos que permaneceram tem menos anos de formação do que os que migraram.
 
 ```{r}
 data |> 
@@ -1622,7 +1705,14 @@ data |>
        x = NULL,
        y = "Idade") +
   theme_minimal()
+
+shapiro.test(data$anos_formacao)
+
+wilcox.test(anos_formacao ~ churn, data = data, 
+                         alternative = "two.sided")
 ```
+
+Em consonância com os resultados anteriores, há uma correlação significativa entre a idade e os anos de formação dos médicos participantes que é demonstrado visualmente pelo gráfico de dispersão, e estatísticamente pelo teste de correlação com o método de pearson.
 
 ```{r}
 data |> 
@@ -1637,17 +1727,24 @@ data |>
 
 ### 3.2 Atributos a nível estabelecimento
 
+Na função abaixo, é gerada uma uma matriz de correlações entre as variáveis de profissionais por estabelecimento, e com o número de leitos. Observa-se que houve significância entre todas as variáveis, entre as maiores, de técnico e auxiliar de enfermagem e enfermeiros considerando profissionais, e número de leitos com enfermeiros.
+
 ```{r}
+
+data |> 
+  distinct(agente_saude, dentista, enfermeiro, tec_aux_enf, leitos_instalacao_fisica_urgencia, cnes) |> 
 ggpairs(
-  data,
   columns = c("agente_saude", "dentista", "enfermeiro", "tec_aux_enf", "leitos_instalacao_fisica_urgencia"),
   upper = list(continuous = "cor"),
   lower = list(continuous = "points")) +
   theme_minimal()
 ```
 
+A seguir é gerado boxplot do número de agentes de saúde por estabelecimento desagregado pelo churn. Os testes Shapiro-Wilk e Wenn-Whitiney indicaram, respectivamente, não normalidade e diferença estatística significativa entre os dois grupos. O número de agentes de saúde de estabelecimento em que médicos não permaneram, ligeiramente maior em comparação aos estabelecimentos de profissionais que permaneceram.
+
 ```{r}
 data |> 
+  distinct(cnes, agente_saude, churn) |> 
     mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
   ggplot(aes(x = churn, y = agente_saude)) + 
   geom_boxplot(fill = "lightblue") +
@@ -1662,10 +1759,21 @@ data |>
        x = NULL,
        y = "Agentes Comunitários de Saúde") +
   theme_minimal()
+
+distinct_agente_saude <- data |>
+  distinct(agente_saude, churn, cnes)
+
+shapiro.test(distinct_agente_saude$agente_saude)
+
+wilcox.test(agente_saude ~ churn, data = distinct_agente_saude, 
+                         alternative = "two.sided")
 ```
+
+Na mesma lógica anterior, dos agentes de saúde, é realizado com técnico e auxiliares de enfermagem. Os testes indicam não normalidade e diferença estatística não significativa, indicando, que o número de profissionais por estabelecimento de profissionais que migraram e permaneceram são iguais.
 
 ```{r}
 data |> 
+  distinct(tec_aux_enf, churn, cnes) |> 
     mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
   ggplot(aes(x = churn, y = tec_aux_enf)) + 
   geom_boxplot(fill = "lightblue") +
@@ -1680,10 +1788,20 @@ data |>
        x = NULL,
        y = "Técnicos e Auxiliares de Enfermagem") +
   theme_minimal()
+
+distinct_tec_aux_enf <- data |> 
+  distinct(tec_aux_enf, churn, cnes)
+
+shapiro.test(distinct_tec_aux_enf$tec_aux_enf)
+
+wilcox.test(tec_aux_enf ~ churn, data = data, alternative = "two.sided")
 ```
+
+Os resultados de enfermeiros são semelhantes dos de técnico e auxiliar de enfermagem, não seguem distribuição normal, e não apresenta diferença estatística significativa no comparativo de estabelecimentos com profissionais que migraram ou permaneceram.
 
 ```{r}
 data |> 
+  distinct(enfermeiro, churn, cnes) |> 
     mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
   ggplot(aes(x = churn, y = enfermeiro)) + 
   geom_boxplot(fill = "lightblue") +
@@ -1696,12 +1814,22 @@ data |>
   ) +
   labs(title = "Boxplot: Enfermeiros por CNES de pessoas que migraram e permaneceram",
        x = NULL,
-       y = "Técnicos e Auxiliares de Enfermagem") +
+       y = "Enfermeiros") +
   theme_minimal()
+
+distinct_enfermeiros <- data |> 
+  distinct(enfermeiro, churn, cnes)
+
+shapiro.test(distinct_enfermeiros$enfermeiro)
+
+wilcox.test(enfermeiro ~ churn, data = distinct_enfermeiros, alternative = "two.sided")
 ```
+
+Assim como técnicos e auxiliares de enfermagem e enfermeiros, o número de dentistas não segue distribuição normal e não apresenta diferença significativa entre estabelecimentos que tiveram profissionais que permaneceram e migraram.
 
 ```{r}
 data |> 
+  distinct(dentista, churn, cnes) |> 
     mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
   ggplot(aes(x = churn, y = dentista)) + 
   geom_boxplot(fill = "lightblue") +
@@ -1716,10 +1844,20 @@ data |>
        x = NULL,
        y = "Técnicos e Auxiliares de Enfermagem") +
   theme_minimal()
+
+distinct_dentista <- data |> 
+  distinct(dentista, churn, cnes)
+
+shapiro.test(distinct_dentista$dentista)
+
+wilcox.test(dentista ~ churn, data = distinct_dentista, alternative = "two.sided")
 ```
+
+A seguir, boxplot de número de leitos desagregado pelo churn. O teste Shapiro-Wilk indica que a variável não segue distribuição normal, e o teste Wenn-Whetney aponta que não há diferença significativa. O resultado mostra que o número de leitos por estabelecimento de profissionais que permaneceram e migraram são iguais.
 
 ```{r}
 data |> 
+  distinct(leitos_instalacao_fisica_urgencia, churn, cnes) |> 
     mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
   ggplot(aes(x = churn, y = leitos_instalacao_fisica_urgencia)) + 
   geom_boxplot(fill = "lightblue") +
@@ -1734,9 +1872,18 @@ data |>
        x = NULL,
        y = "Técnicos e Auxiliares de Enfermagem") +
   theme_minimal()
+
+distinct_leitos <- data |> 
+  distinct(leitos_instalacao_fisica_urgencia, churn, cnes)
+
+shapiro.test(distinct_leitos$leitos_instalacao_fisica_urgencia)
+
+wilcox.test(leitos_instalacao_fisica_urgencia ~ churn, data = distinct_leitos, alternative = "two.sided")
 ```
 
 ### 3.3 Atributos a nível município
+
+Abaixo é calculado a retenção de profissionais desagregado por região do país. O teste de fisher indica diferença estatística entre as localidades, muito destacada pela região norte que apresenta um desvio expressivo em relação as outras.
 
 ```{r}
 corr_regiao_churn <- data |> 
@@ -1756,7 +1903,11 @@ corr_regiao_churn |>
        x = NULL, 
        y = NULL) + 
   theme_minimal()
+
+fisher.test(corr_regiao_churn[, c("migrou", "permanece")], simulate.p.value = TRUE)
 ```
+
+Na mesma lógica da retenção por região, abaixo é calculado por unidade federativa. Os resultados mostram Tocantins e Sergipe como melhores resultados de permanência de médicos nas cidades de destino, no entanto, os resultados devem ser olhados com ceticismo já que são estados que receberam poucos médicos, e em especial, Tocantins que recebeu apenas 15 profissionais.
 
 ```{r}
 corr_uf_churn <- data |> 
@@ -1777,7 +1928,19 @@ corr_uf_churn |>
        x = NULL, 
        y = NULL) + 
   theme_minimal()
+
+fisher.test(corr_uf_churn[, c("migrou", "permanece")], simulate.p.value = TRUE)
 ```
+
+Ressaltando os critérios de classificação de porte dos municípios:
+
+Pequeno Porte I: Até 20.000 habitantes.\
+Pequeno Porte II: Entre 20.000 e 50.000 habitantes.\
+Médio Porte: Entre 50.000 e 100.000 habitantes.\
+Grande Porte: Entre 100.000 e 900.000 habitantes.\
+Metrópole: Mais de 900.000 habitantes.
+
+A seguir é calculada a retenção desagredada por porte da cidade. A não significância estatística do teste de fisher indica que não há associação entre o porte e o churn.
 
 ```{r}
 corr_porte_churn <- data |> 
@@ -1803,12 +1966,16 @@ corr_porte_churn |>
        x = NULL, 
        y = NULL) + 
   theme_minimal()
+
+fisher.test(corr_porte_churn[, c("migrou", "permanece")], simulate.p.value = TRUE)
 ```
+
+Abaixo, o boxplot do PIB per capita desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença não significativa entre os médicos que permaneceram e que migraram. Os resultados mostram que o PIB per capita da cidade não é um determinante para retenção dos médicos, no entanto, deve ser analisado com o ceticismo por não se tratar de uma variável aleatória, dado que os profissionais que selecionam as cidades que desejam ir, tratando dessa forma de um viés.
 
 ```{r}
 
 data |> 
-  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
   ggplot(aes(x = churn, y = pib_percapita)) + 
   geom_boxplot(fill = "lightblue") +
   stat_summary(
@@ -1818,15 +1985,24 @@ data |>
     vjust = -0.5, 
     color = "black"
   ) +
-  labs(title = "Boxplot: PIB per capita por pessoas que migraram e permanceram",
+  labs(title = "Boxplot: PIB per capita por pessoas que migraram e permaceram",
        x = NULL,
        y = "PIB per capita (R$)") +
   theme_minimal()
+
+distinct_pib <- data |> 
+  distinct(ibge_aloc, pib_percapita, churn)
+
+shapiro.test(distinct_pib$pib_percapita)
+
+wilcox.test(pib_percapita ~ churn, data = distinct_pib, alternative = "two.sided")
 ```
+
+A seguir, o boxplot da taxa de ocupação do municipio desagregado por churn. O teste Shapiro-Walk indica não normalidade na distribruição de probabilidade, e o Wenn-Whitney aponta que não há diferença estatística significativa entre os profissionais que migraram e permanaceram.
 
 ```{r}
 data |> 
-  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
   ggplot(aes(x = churn, y = tx_pop_ocupada*100)) + 
   geom_boxplot(fill = "lightblue") +
   stat_summary(
@@ -1840,7 +2016,13 @@ data |>
        x = NULL,
        y = "Taxa de ocupação (%)") +
   theme_minimal()
+
+shapiro.test(data$tx_pop_ocupada)
+
+wilcox.test(tx_pop_ocupada ~ churn, data = data, alternative = "two.sided")
 ```
+
+No código abaixo, o boxplot do número de vagas em curso de medicina por município desagregado por churn. Os testes indicam não normalidade da distribuição de probabilidade e diferença estatística significativa entre o número de vagas em municípios em que os médicos permaneceram e migraram.
 
 ```{r}
 data |> 
@@ -1857,7 +2039,13 @@ data |>
        x = NULL,
        y = "Vagas de medicina") +
   theme_minimal()
+
+shapiro.test(data$vagas_medicina_milhab)
+
+wilcox.test(vagas_medicina_milhab ~ churn, data = data, alternative = "two.sided")
 ```
+
+Abaixo o boxplot dos gastos públicos com saúde desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
 
 ```{r}
 
@@ -1875,12 +2063,18 @@ data |>
        x = "Renovação",
        y = "Orçamendo de saúde per capita") +
   theme_minimal()
+
+shapiro.test(data$orcamento_saude)
+
+wilcox.test(orcamento_saude ~ churn, data = data, alternative = "two.sided")
 ```
+
+Abaixo o boxplot da cobertura populacional com esgoto sanitário desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
 
 ```{r}
 
 data |> 
-  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
   ggplot(aes(x = churn, y = esgotamento_sanitario)) + 
   geom_boxplot(fill = "lightblue") +
   stat_summary(
@@ -1895,11 +2089,16 @@ data |>
        y = "População com esgoto sanitário (%)") +
   theme_minimal()
 
+shapiro.test(data$esgotamento_sanitario)
+
+wilcox.test(esgotamento_sanitario ~ churn, data = data, alternative = "two.sided")
 ```
+
+Abaixo o boxplot da taxa de homício dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
 
 ```{r}
 data |> 
-  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
   ggplot(aes(x = churn, y = taxa_homicidio)) + 
   geom_boxplot(fill = "lightblue") +
   stat_summary(
@@ -1914,46 +2113,12 @@ data |>
        y = "Taxa de homicídio por 100 mil hab.") +
   theme_minimal()
 
+shapiro.test(data$taxa_homicidio)
+
+wilcox.test(taxa_homicidio ~ churn, data = data, alternative = "two.sided")
 ```
 
-```{r}
-
-data |> 
-  ggplot(aes(x = churn, y = mortes_armasdefogo)) + 
-  geom_boxplot(fill = "lightblue") +
-  stat_summary(
-    fun = median, 
-    geom = "text", 
-    aes(label = round(..y.., 1)),
-    vjust = -0.5, 
-    color = "black"
-  ) +
-  labs(title = "Boxplot: mortes por armas de fogo por pessoas que migraram ou permanceram",
-       x = "Renovação",
-       y = "Mortes por armas de fogo por 100 mil hab.") +
-  theme_minimal()
-
-```
-
-```{r}
-
-data |> 
-  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
-  ggplot(aes(x = churn, y = feminicidio)) + 
-  geom_boxplot(fill = "lightblue") +
-  stat_summary(
-    fun = median, 
-    geom = "text", 
-    aes(label = round(..y.., 1)),
-    vjust = -0.5, 
-    color = "black"
-  ) +
-  labs(title = "Boxplot: taxa de feminicídio por pessoas que migraram ou permanceram",
-       x = NULL,
-       y = "Taxa de femicídio por 100 mil hab.") +
-  theme_minimal()
-
-```
+Abaixo o boxplot da nota do IDEB anos iniciais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que a nota ideb dos municípios com maior grau de retenção tem são ligeiramente maior.
 
 ```{r}
 
@@ -1973,7 +2138,12 @@ data |>
        y = "Nota IDEB Anos Iniciais") +
   theme_minimal()
 
+shapiro.test(data$ideb_anosfinais)
+
+wilcox.test(ideb_anosiniciais ~ churn, data = data, alternative = "two.sided")
 ```
+
+Abaixo o boxplot da nota do IDEB anos finais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
 
 ```{r}
 
@@ -1992,10 +2162,15 @@ data |>
        x = NULL,
        y = "Nota IDEB Anos Finais") +
   theme_minimal()
+
+shapiro.test(data$ideb_anosfinais) 
+
+wilcox.test(ideb_anosfinais ~ churn, data = data, alternative = "two.sided")
 ```
 
-```{r}
+Abaixo o boxplot do número de equipamentos esportivos dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que os municípios com maior grau de retenção tem infraestrutura esportiva maior.
 
+```{r}
 data |> 
   mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
   ggplot(aes(x = churn, y = investimento_infraestrutura)) + 
@@ -2012,7 +2187,12 @@ data |>
        y = "Equipamentos esportivos por mil hab") +
   theme_minimal()
 
+shapiro.test(data$investimento_infraestrutura)
+
+wilcox.test(investimento_infraestrutura ~ churn, data = data, alternative = "two.sided")
 ```
+
+Abaixo o boxplot do número de espaços culturais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que os municípios com maior grau de retenção tem maior infraestrutura cultural.
 
 ```{r}
 data |> 
@@ -2030,4 +2210,89 @@ data |>
        x = NULL,
        y = "Equipamentos culturais por mil hab.") +
   theme_minimal()
+
+shapiro.test(data$equpamentos_culturais) 
+
+wilcox.test(equpamentos_culturais ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot da **distância da capital** em km dos municípios desagregado pelo churn. Os testes indicam **não normalidade** na distribuição de probabilidade e diferença estatística **não significativa** entre os municípios que tiveram profissionais que migraram e permaneceram.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = distancia_capital)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Distância da capital por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Distância da capital (km)") +
+  theme_minimal()
+
+shapiro.test(data$distancia_capital)
+
+wilcox.test(distancia_capital ~ churn, data = data, alternative = "two.sided")
+```
+
+## 4. Diagrama de Sunkey
+
+```{r}
+teste <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_sankeyplot.xlsx") |> 
+  mutate(regiao_destino = case_when(
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro")) |> 
+  mutate(regiao_final = case_when(
+    (uf_final %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_final %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_final %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_final %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_final %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro"))
+
+# Crie uma tabela de transições entre os estados (regiao_destino -> regiao_final)
+tabela_transicoes <- table(teste$regiao_destino, teste$regiao_final)
+transicoes <- as.data.frame(as.table(tabela_transicoes))
+
+# Nomeie as colunas
+names(transicoes) <- c("source", "target", "value")
+
+# Converta as variáveis para índices numéricos (necessário para o Sankey)
+regioes_unicas_origem <- unique(teste$regiao_destino)  # Nó de origem
+regioes_unicas_destino <- unique(teste$regiao_final)   # Nó de destino
+
+# Ajustar para separar os nós de origem e destino
+transicoes$source <- match(transicoes$source, regioes_unicas_origem) - 1
+transicoes$target <- match(transicoes$target, regioes_unicas_destino) + length(regioes_unicas_origem) - 1  # Ajusta a posição do nó de destino
+
+# Gerar o gráfico de Sankey
+sankey <- plot_ly(
+  type = "sankey",
+  domain = list(x = c(0, 1), y = c(0, 1)),
+  orientation = "h",  # Para garantir que os nós fiquem na horizontal
+  node = list(
+    pad = 15,
+    thickness = 20,
+    line = list(color = "black", width = 0.5),
+    label = c(regioes_unicas_origem, regioes_unicas_destino)  # Nomes dos nós de origem e destino
+  ),
+  link = list(
+    source = transicoes$source,
+    target = transicoes$target,
+    value = transicoes$value
+  )
+)
+
+# Exibir o gráfico
+sankey
+#saveWidget(sankey, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/sankeyplot_interativo.html")
 ```
