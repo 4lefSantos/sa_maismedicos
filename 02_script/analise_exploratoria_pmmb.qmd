@@ -16,7 +16,7 @@ A análise será realizada seguindo as seguintes etapas:
 
 -   Correlações entre as variáveis;
 
--   Diagrama de de fluxo (Sankey).
+-   Diagrama de fluxo (Sankey).
 
 Assim, iniciaremos caracterizando as variáveis e examinando sua distribuição por meio de gráficos como boxplots, histogramas e identificação de outliers. Em seguida, realizaremos uma análise desagregada considerando o churn, ou seja, distinguindo entre médicos que permaneceram ou migraram, respeitando a estrututura de atributos relacionados ao indivíduo, estabelecimento e município. E por fim, o diagrama de Sankey para entender como os profissionais transitaram no território brasileiro por região no período de 4,5 anos após o início do programa.
 
@@ -94,6 +94,8 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 +------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
 | atuacao_previa_no_municipio              | Variável binária que identifica os médicos que já atuaram no município em que foi destinado em ano anterior a 2019 |
 +------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| uf_final                                 | Variável que identifica a UF que o médico está após 4,5 anos do início do programa                                 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
 
 +-------------------------+-----------------------------------------------------------------------------------------------------+
 | Variáveis quantitativas | Descrição                                                                                           |
@@ -166,14 +168,20 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | equipamentos_culturais      | Número de centros culturais, espaços e casas de cultura públicos e privados por 100 mil habitantes |
 +-----------------------------+----------------------------------------------------------------------------------------------------+
+| distancia_capital           | Distância em km da capital do Estado                                                               |
++-----------------------------+----------------------------------------------------------------------------------------------------+
 
 ## 2. Medidas de tendência central
 
+Conforme introduzido anteriormente, iremos analisar as medidas de tendência central das variáveis, no caso das variáveis quantativas, sendo elas, valor mínimo e máximo, mediana, primeiro e terceiro quartil e valores máximo e mínimo com base na diferença interquatílica para identificação dos outliers representando-as em forma de boxplot. E no caso de variáveis qualitativas, calcularemos a participação relativa das categorias, representando-as em forma de gráficos.
+
 ### 2.1 Atributos a nível indivivíduo
+
+Os atributos entendidos como referentes ao indivíduo, são variáveis que se referem aos médicos na sua individualidade, tais como sexo, idade, anos de formação e outros.
 
 #### 2.1.1 Sexo
 
-O programa conta com 908 médicos (55%) e 739 médicas (45%), indicando certo grau de balanceamento por gênero.
+Abaixo, na análise da variável sexo, observa-se que do total de 1647 médicos participantes do programa, 55% são homens e 45% mulheres. Este resultado indica equilíbrio (balanceamento) da base por sexo.
 
 ```{r}
 
@@ -196,7 +204,7 @@ sexo |>
 
 #### 2.1.2 Atuação prévia
 
-Dos 1647 médicos participantes do programa, 190 (11,5%) já havia atuado anteriormente no município em que foi destinado.
+Dos 1647 médicos participantes do programa, 190 (11,5%) já haviam atuado anteriormente no município em que foi destinado, mas não necessariamente no período imediatamente anterior.
 
 ```{r}
 
@@ -267,7 +275,7 @@ uf_destino |>
 
 #### 2.1.4 Renovação
 
-A variável renovação indica indica os médicos que tiveram a permanência no programa prorrogadas por mais um ano, totalizando 4 anos.
+A variável renovação indica indica os médicos que solicitaram prorrogação da permanência no programa por mais um ano, totalizando 4 anos.
 
 ```{r}
 renovacao <- data |> 
@@ -303,7 +311,7 @@ churn |>
 
 #### 2.1.6 Anos de atuação no município antes do programa
 
-Dentro os 190 médicos que já haviam atuado no município em que foram destinados, a mediana dos anos de atuação foi de 1,75.
+Considernando os 190 médicos que já haviam atuado no município em que foram destinados, tiveram uma atuação mediana de 1,75 anos.
 
 ```{r}
 
@@ -360,7 +368,7 @@ data |>
 
 #### 2.1.7 Idade
 
-Pelo código abaixo, observa-se que a mediana da idade dos participantes ao ingressar no programa foi de 32,4 anos.
+A variável idade é analisada na competência em que o médico ingressa no programa. Os resultados mostram que a idade variou entre 22 e 79 anos, no entanto, a mediana foi de 32,4 anos.
 
 ```{r}
 descritiva_idade <- data |>
@@ -418,7 +426,7 @@ data |>
 
 #### 2.1.7 Anos de formação
 
-A referida variável denota os anos de formação que os médicos tinham ao ingressar no programa. Observa-se que, em geral, são de profissionais recém-formados com uma mediana de 1,7 anos.
+Assim como no caso da idade, os anos de formação é calculado considerando a competência de ingresso no programa. Os dados variam de 0 a 53 anos e com uma mediana de 1,7. Este resultado indica que o perfil de médicos ingressantes são de recém-formados.
 
 ```{r}
 descritiva_anos_formacao <- data |> 
