@@ -16,14 +16,15 @@ A análise será realizada seguindo as seguintes etapas:
 
 -   Correlações entre as variáveis;
 
--   Diagrama de de fluxo (Sankey).
+-   Diagrama de fluxo (Sankey).
 
 Assim, iniciaremos caracterizando as variáveis e examinando sua distribuição por meio de gráficos como boxplots, histogramas e identificação de outliers. Em seguida, realizaremos uma análise desagregada considerando o churn, ou seja, distinguindo entre médicos que permaneceram ou migraram, respeitando a estrututura de atributos relacionados ao indivíduo, estabelecimento e município. E por fim, o diagrama de Sankey para entender como os profissionais transitaram no território brasileiro por região no período de 4,5 anos após o início do programa.
 
 Abaixo as bibliotecas que serão utilizadas.
 
 ```{r}
-#|warning: FALSE
+#| warning: false
+#| message: false
 
 library(tidyverse)
 library(readxl)
@@ -93,6 +94,8 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 | churn                                    | Variável binária que identifica os médicos que permaneceram no município em que foi destinado após 4,5 anos        |
 +------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
 | atuacao_previa_no_municipio              | Variável binária que identifica os médicos que já atuaram no município em que foi destinado em ano anterior a 2019 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| uf_final                                 | Variável que identifica a UF que o médico está após 4,5 anos do início do programa                                 |
 +------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
 
 +-------------------------+-----------------------------------------------------------------------------------------------------+
@@ -166,14 +169,20 @@ Observa-se que cada observação corresponde a um médico na primeira competênc
 +-----------------------------+----------------------------------------------------------------------------------------------------+
 | equipamentos_culturais      | Número de centros culturais, espaços e casas de cultura públicos e privados por 100 mil habitantes |
 +-----------------------------+----------------------------------------------------------------------------------------------------+
+| distancia_capital           | Distância em km da capital do Estado                                                               |
++-----------------------------+----------------------------------------------------------------------------------------------------+
 
 ## 2. Medidas de tendência central
 
+Conforme introduzido anteriormente, iremos analisar as medidas de tendência central das variáveis, no caso das variáveis quantativas, sendo elas, valor mínimo e máximo, mediana, primeiro e terceiro quartil e valores máximo e mínimo com base na diferença interquatílica para identificação dos outliers representando-as em forma de boxplot. E no caso de variáveis qualitativas, calcularemos a participação relativa das categorias, representando-as em forma de gráficos.
+
 ### 2.1 Atributos a nível indivivíduo
+
+Os atributos entendidos como referentes ao indivíduo, são variáveis que se referem aos médicos na sua individualidade, tais como sexo, idade, anos de formação e outros.
 
 #### 2.1.1 Sexo
 
-O programa conta com 908 médicos (55%) e 739 médicas (45%), indicando certo grau de balanceamento por gênero.
+Abaixo, na análise da variável sexo, observa-se que do total de 1647 médicos participantes do programa, 55% são homens e 45% mulheres. Este resultado indica equilíbrio (balanceamento) da base por sexo.
 
 ```{r}
 
@@ -196,7 +205,7 @@ sexo |>
 
 #### 2.1.2 Atuação prévia
 
-Dos 1647 médicos participantes do programa, 190 (11,5%) já havia atuado anteriormente no município em que foi destinado.
+Dos 1647 médicos participantes do programa, 190 (11,5%) já haviam atuado anteriormente no município em que foi destinado, mas não necessariamente no período imediatamente anterior.
 
 ```{r}
 
@@ -216,7 +225,7 @@ atuacao_previa |>
 
 #### 2.1.3 Localidade em que o médico foi designado
 
-O código abaixo mostra quais as localidades em que os médicos foram destinados, primeiro por região e depois por unidade federativa. Os Estados do nordeste concentram a maior parte dos médicos participantes.
+O código abaixo mostra quais as localidades em que os médicos foram destinados, primeiro por região e depois por unidade federativa. Os Estados do nordeste concentram a maior parte dos médicos participantes. Além disso, analise-se as unidades federativas em que os médicos estão exercendo a profissão após o período de 4,5 anos.
 
 ```{r}
 
@@ -265,9 +274,27 @@ uf_destino |>
   theme_minimal()
 ```
 
+```{r}
+uf_final <- data |> 
+  count(uf_final, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2))
+
+uf_final |> 
+  ggplot(aes(x = fct_reorder(uf_final, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Estado de destino",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
 #### 2.1.4 Renovação
 
-A variável renovação indica indica os médicos que tiveram a permanência no programa prorrogadas por mais um ano, totalizando 4 anos.
+A variável renovação indica indica os médicos que solicitaram prorrogação da permanência no programa por mais um ano, totalizando 4 anos.
 
 ```{r}
 renovacao <- data |> 
@@ -303,7 +330,7 @@ churn |>
 
 #### 2.1.6 Anos de atuação no município antes do programa
 
-Dentro os 190 médicos que já haviam atuado no município em que foram destinados, a mediana dos anos de atuação foi de 1,75.
+Dos 190 médicos que já haviam atuado no município de destino, a mediana de atuação foi de 1,75 anos.
 
 ```{r}
 
@@ -360,7 +387,7 @@ data |>
 
 #### 2.1.7 Idade
 
-Pelo código abaixo, observa-se que a mediana da idade dos participantes ao ingressar no programa foi de 32,4 anos.
+A variável idade é analisada na competência em que o médico ingressa no programa. Os resultados mostram que a idade variou entre 22 e 79 anos, no entanto, a mediana foi de 32,4 anos.
 
 ```{r}
 descritiva_idade <- data |>
@@ -418,7 +445,7 @@ data |>
 
 #### 2.1.7 Anos de formação
 
-A referida variável denota os anos de formação que os médicos tinham ao ingressar no programa. Observa-se que, em geral, são de profissionais recém-formados com uma mediana de 1,7 anos.
+Assim como no caso da idade, os anos de formação é calculado considerando a competência de ingresso no programa. Os dados variam de 0 a 53 anos e com uma mediana de 1,7. Este resultado indica que o perfil de médicos ingressantes são de recém-formados.
 
 ```{r}
 descritiva_anos_formacao <- data |> 
@@ -477,6 +504,8 @@ data |>
 
 ### 2.2 Atributos a nível estabelecimento
 
+A seguir serão analisadas as variáveis que caracterizam o estabelecimento em que o médido participante do programa foi alocado, sendo elas, o tipo de estabelecimento, a equipe e a quantidade de leitos. Ressalta-se que as variáveis relacionadas a equipe estão parametrizadas de acordo com o conceito de Full Time-Equivalent (FTE) considerando como tempo integral o tempo de 40 horas, portando se um estabelecimento tem dois profissionais em que um trabalho 40 horas e o outro 20 horas, é contabilizado 1,5 profissionais.
+
 #### 2.2.1 Tipo de estabelecimento
 
 A ampla maioria dos médicos foram desginados para unidades básicas de saúde, no entanto, todos os estabelecimentos são da atenção primária de saúde.
@@ -506,7 +535,7 @@ tipo_estabelecimento |>
 
 #### 2.2.2 Agentes comunitários de saúde
 
-Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 7,2 agentes comunitários de saúde.
+A quantidade de agentes comunitários saúde nos estabelecimentos que receberam médicos do programa variou entre 0 e 61, com uma mediana de 7 ACS's.
 
 ```{r}
 #*Há presença de um valor ausente*
@@ -565,9 +594,7 @@ data |>
 
 #### 2.2.3 Cirurgiões-dentistas
 
-Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 7,2 agentes comunitários de saúde.
-
-(fazer por região, churn)
+A quantidade de cirurgiões-dentistas nos estabelecimentos que receberam médicos do programa variou entre 0 e 5,9 dentistas, com uma mediana de 1 dentista.
 
 ```{r}
 descritiva_dentistas <- data |> 
@@ -624,7 +651,7 @@ data |>
 
 #### 2.2.4 Enfermeiros
 
-Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 1,3 enfermeiros.
+A quantidade de enfermeiros nos estabelecimentos que receberam médicos do programa variou entre 0 e 20,1, com uma mediana de 1 enfereiro.
 
 ```{r}
 descritiva_enfermeiros <- data |> 
@@ -681,7 +708,7 @@ data |>
 
 #### 2.2.5 Técnicos e Auxiliares de enfermagem
 
-Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 2,3 técnicos e auxiliares de enfermagem.
+A quantidade de ténicos e auxiliares de enfermagem nos estabelecimentos que receberam médicos do programa variou entre 0 e 44,8, com uma mediana de 2,16.
 
 ```{r}
 descritiva_tec_aux_enf <- data |> 
@@ -738,7 +765,7 @@ data |>
 
 #### 2.2.7 Leitos instalação física urgência
 
-Os estabelecimentos de saúde que receberam médicos do programa tinham uma mediana de 6 leitos de urgência.
+O número de leitos de instalação física de urgência nos estabelecimentos que receberam médicos do programa variou entre 0 a 25, com uma mediana de 6 leitos.
 
 ```{r}
 descritiva_leitos_instalacao_fisica_urgencia <- data |> 
@@ -797,6 +824,8 @@ data |>
 
 ### 2.3 Atributos a nível município
 
+A seguir, as variáveis que caracterizam os municípios, tais como indicadores econômicos, de educaçao, saúde, infraestrutura e segurança pública.
+
 #### 2.3.1 Porte da cidade
 
 O porte dos município é classificado de acordo com sua população:
@@ -806,6 +835,8 @@ Pequeno Porte II: Entre 20.000 e 50.000 habitantes.\
 Médio Porte: Entre 50.000 e 100.000 habitantes.\
 Grande Porte: Entre 100.000 e 900.000 habitantes.\
 Metrópole: Mais de 900.000 habitantes.
+
+Pelo resultado abaixo, observa-se que a ampla maioria (64%) dos médicos foram designados para municípos de até 50.000 habitantes. Ressalta-se, em conformidade do que o edital prevê, há previsão para destinação de médicos para cidades maiores que tenham dificuldades de financiamento público.
 
 ```{r}
 porte <- data |> 
@@ -832,7 +863,7 @@ porte |>
 
 #### 2.3.2 Produto Interno Bruto (PIB) per capita (R\$)
 
-A mediana do PIB per capita dos municípios que receberam médicos do programa foi de R\$ 15.519,00
+O PIB per capita dos municípios participantes do programa variou entre R\$ 4.475 e R\$ 353.505, com uma mediana de R\$ 13.861.
 
 ```{r}
 descritiva_pib_percapita <- data |> 
@@ -889,7 +920,7 @@ data |>
 
 #### 2.3.3 Taxa de ocupação da população (%)
 
-A mediana da taxa de ocupação dos municípios que receberam médicos do programa foi de 12,13%.
+A taxa de população ocupada dos municípios participantes variou de 1,4% a 92,9%, com uma mediana de 11,18%.
 
 ```{r}
 descritiva_tx_pop_ocupada <- data |> 
@@ -950,7 +981,7 @@ data |>
 
 #### 2.3.4 Taxa da população que possui plano de saúde (%)
 
-A mediana da taxa de cobertura de plano de saúde dos municípios que receberam médicos do programa foi de 7,12%.
+O percentual da população que detêm plano de saúde dos municípios participantes do programa variou de 0,13% a 90,3%, com uma mediana de 5,33%.
 
 ```{r}
 descritiva_cobertura_plano_saude <- data |> 
@@ -1007,7 +1038,7 @@ data |>
 
 #### 2.3.5 Quantidade de vagas de medicina em faculdades no município
 
-Dos 1.058 municípios que receberam médicos do programa, 362 haviam vagas em cursos de medicina.
+Dos 1.058 municípios que receberam médicos do programa, 362 haviam vagas em cursos de medicina, sendo que o maior número foi de 22 vagas.
 
 ```{r}
 descritiva_vagas_medicina <- data |> 
@@ -1065,7 +1096,7 @@ data |>
 
 #### 2.3.6 Orçamento destinado a saúde per capita (R\$)
 
-A mediana do gasto público com saúde per capita dos municípios que receberam médicos do programa foi de R\$ 634,00.
+Os gastos públicos per capita com saúde dos municípios participantes do programa variou de R\$ 202 a R\$ 5.561, com uma mediana de R\$ 605.
 
 ```{r}
 descritiva_orcamento_saude <- data |> 
@@ -1122,7 +1153,7 @@ data |>
 
 #### 2.3.7 População total atendida com esgotamento sanitário (%)
 
-A mediana da cobertura populacional de esgotamento sanitário dos municípios que receberam médicos do programa foi de 10,8%.
+O percentual da população que possui esgoto sanitário dos municípios participantes variou de 0% a 46,6%, com uma mediana de 6,7%.
 
 ```{r}
 descritiva_esgoto <- data |> 
@@ -1175,7 +1206,7 @@ data |>
 
 #### 2.3.8 Número de mortes por homicídio por 100 mil habitantes
 
-A mediana das mortes por homicídio por 100 mil habitantes dos municípios que receberam médicos do programa foi de 24.
+O número de mortes por homícidio por 100 mil habitantes dos municípios participantes do programa foi de 0 a 188, com uma mediana de 23,5.
 
 ```{r}
 descritiva_homicidio <- data |> 
@@ -1232,14 +1263,9 @@ data |>
 
 #### 2.3.11 Nota do IDEB - Rede municipal - Anos Iniciais
 
-Tem 25 NA's
-
-A mediana da nota IDEB de anos iniciais dos municípios que receberam médicos do programa foi de 5,4.
+A nota IDEB dos anos inicias dos municípios participantes do programa variou de 3,2 a 9,4, com uma mediana de 5,3.
 
 ```{r}
-data |> 
-  filter(is.na(ideb_anosiniciais)) |> 
-  count()
 
 descritiva_ideb_inicial <- data |> 
   summarise(
@@ -1295,9 +1321,7 @@ data |>
 
 #### 2.3.12 Nota do IDEB - Rede municipal - Anos Finais
 
-Tem 279 NA's
-
-A mediana da nota IDEB de anos finais dos municípios que receberam médicos do programa foi de 4,4.
+A nota IDEB dos anos finais dos municípios participantes do programa variou de 2,2 a 7,8, com uma mediana de 4,3.
 
 ```{r}
 data |> 
@@ -1358,7 +1382,7 @@ data |>
 
 #### 2.3.13 Valor do investimento público em infraestrutura per capita (R\$)
 
-A mediana da investimento em infraestrutura per capita dos municípios que receberam médicos do programa foi de R\$ 2.614,00.
+Os gastos públicos per capita com investimento em infreaestrutura variou de R\$1.686 a R\$27.148, com uma mediana de R\$ 2.702.
 
 ```{r}
 descritiva_investimento_infraestrutura <- data |> 
@@ -1415,7 +1439,7 @@ data |>
 
 #### 2.3.14 Número de equipamentos esportivos públicos por 100 mil habitantes
 
-A mediana de equipamentos esportivos por 100 mil habitantes dos municípios que receberam médicos do programa foi de 4,2.
+O número de equipamentos esportivos por 100 mil habitantes dos municípios participantes do programa variou de 0 a 197, com uma mediana de 4,8.
 
 ```{r}
 
@@ -1473,7 +1497,7 @@ data |>
 
 #### 2.3.15 Número de espaços culturais públicos e privados por 100 mil habitantes
 
-A mediana de espaços culturais por 100 mil habitantes dos municípios que receberam médicos do programa foi de 5,5.
+O número de espaços culturais por 100 mil habitantes dos municípios participantes do programa variou de 0 a 160, com uma mediana de 6,1.
 
 ```{r}
 descritiva_equipamentos_culturais <- data |> 
@@ -1530,6 +1554,8 @@ data |>
 
 #### 2.3.16 Distância da Capital
 
+A distância até a capital dos municípios participantes do programa variou de 1km a 1.708km, com uma mediana de 250km.
+
 ```{r}
 descritiva_distancia_capital <- data |> 
   summarise(
@@ -1585,6 +1611,16 @@ data |>
 
 ## 3. Correlações entre variáveis
 
+Nessa seção, cruzaremos as variáveis para saber o grau de correlação entre elas. Como o churn é a variável de interesse, ela será o principal objeto de análise. E como feito na seção anterior, a estruturação é feita respeitando os níveis de atributos.
+
+Também serão aplicados os seguintes testes estatísticos: Teste de Fisher, Teste de Shapiro-Wilk e Teste de Mann-Whitney.
+
+O **Teste de Fisher** é utilizado para determinar se há uma associação significativa entre duas variáveis categóricas, ou em outras palavras, se há diferença estatística entre dois grupos. Por exemplo, ao constatarmos que não há diferença estatística na retenção de profissionais por sexo, dizemos que as variáveis sexo e retenção são independentes. Ele é especialmente útil na análise de variáveis categóricas com amostras pequenas. A hipótese nula afirma que a razão de chances de ocorrência de um evento (ods ratio = 1) não difere entre os grupos, indicando independência entre as variáveis. Por outro lado, a hipótese alternativa (ods rario != 1) sugere uma associação (dependência) entre as variáveis. Portanto, quando o valor-p é significativo (p-value\<0,05), rejeitamos a hipótese nula, concluindo que há associação entre as variáveis. Caso contrário, não rejeitamos a hipótese nula, indicando que não há evidência de associação significativa.
+
+O **Teste de Shapiro-Wilk**, aplicável no caso de variáveis quantitativas, é utilizado para verificar se o padrão de distribuição de probabilidade segue a normalidade. Isso é importante, porque muitas análises como a ANOVA, test t e regressões lineares pressupões normalidade dos dados. A hipótese nula é de que os dados seguem distribuição normal, e alternativa de que não segue. Portanto, quando p-value\<0.05, rejeita a hipótese nula indicando não normalidade dos dados.
+
+Por último, o **Teste de Mann-Whitney** (ou Teste de Wilcocox) é adequado para variáveis quantitativas que não seguem distribuição normal. Ao comparar duas amostras independentes, verifica se as distribuições de um parâmetro são iguais ou, alternativamente, se uma tende a ter valores maiores que a outra. O p-valor pequeno (p \< 0,05) leva a rejeição da hipótese nula, indicando que as distribuição são significativamente diferentes. É um teste indicado também para presença de outlier, que é o caso da maioria das variáveis analisadas, por operar com ranking dos dados em vez dos valores absolutos.
+
 ### 3.1 Atributos a nível indivíduo
 
 O código abaixo mostra o percentual de médicos que permaneceram nas cidades em que foram designados desagregado por sexo, isto é, a retenção. No entanto, a falta de significância estatística no teste fisher, indica que não há associação entre as variáveis sexo e churn.
@@ -1637,7 +1673,7 @@ corr_renovacao_churn |>
 fisher.test(corr_renovacao_churn[, c("migrou", "permanece")])
 ```
 
-Abaixo, é gerado boxplot da médica de vínculos desagregado pelo churn (retenção). É aplicado o teste de distribuição de probalidade Shapiro-Wilk no qual o p valor significativo indica que não segue normalidade. E dado a não normalidade dos dados, é aplicado o teste de Mann-Whitney para comparar duas amostras (migrou e permance), e o p-valor significativo indica diferença estatística.
+Abaixo, é gerado boxplot da média de vínculos desagregado pelo churn (retenção). É aplicado o teste de distribuição de probalidade Shapiro-Wilk no qual o p valor significativo indica que não segue normalidade. E dado a não normalidade dos dados, é aplicado o teste de Mann-Whitney para comparar duas amostras (migrou e permance), e o p-valor significativo indica diferença estatística entre os dois grupos.
 
 ```{r}
 data |> 
@@ -1727,7 +1763,7 @@ data |>
 
 ### 3.2 Atributos a nível estabelecimento
 
-Na função abaixo, é gerada uma uma matriz de correlações entre as variáveis de profissionais por estabelecimento, e com o número de leitos. Observa-se que houve significância entre todas as variáveis, entre as maiores, de técnico e auxiliar de enfermagem e enfermeiros considerando profissionais, e número de leitos com enfermeiros.
+Na função abaixo, é gerada uma matriz de correlações entre as variáveis de profissionais por estabelecimento, e com o número de leitos. Observa-se que houve significância entre todas as variáveis, entre as maiores, de técnico e auxiliar de enfermagem e enfermeiros considerando profissionais, e número de leitos com enfermeiros.
 
 ```{r}
 
@@ -1740,7 +1776,7 @@ ggpairs(
   theme_minimal()
 ```
 
-A seguir é gerado boxplot do número de agentes de saúde por estabelecimento desagregado pelo churn. Os testes Shapiro-Wilk e Wenn-Whitiney indicaram, respectivamente, não normalidade e diferença estatística significativa entre os dois grupos. O número de agentes de saúde de estabelecimento em que médicos não permaneram, ligeiramente maior em comparação aos estabelecimentos de profissionais que permaneceram.
+A seguir é gerado boxplot do número de agentes de saúde por estabelecimento desagregado pelo churn. Os testes Shapiro-Wilk e Wenn-Whitiney indicaram, respectivamente, não normalidade e diferença estatística significativa entre os dois grupos. O número de agentes de saúde nos estabelecimentos onde os médicos migraram é ligeiramente maior em comparação aos estabelecimentos onde os profissionais permaneceram.
 
 ```{r}
 data |> 
@@ -1883,7 +1919,7 @@ wilcox.test(leitos_instalacao_fisica_urgencia ~ churn, data = distinct_leitos, a
 
 ### 3.3 Atributos a nível município
 
-Abaixo é calculado a retenção de profissionais desagregado por região do país. O teste de fisher indica diferença estatística entre as localidades, muito destacada pela região norte que apresenta um desvio expressivo em relação as outras.
+Abaixo é calculado a retenção de profissionais desagregado por região do país. O teste de fisher indica diferença estatística entre as localidades, muito destacada pela região norte que apresenta um desvio expressivo em relação as demais.
 
 ```{r}
 corr_regiao_churn <- data |> 
@@ -1940,7 +1976,7 @@ Médio Porte: Entre 50.000 e 100.000 habitantes.\
 Grande Porte: Entre 100.000 e 900.000 habitantes.\
 Metrópole: Mais de 900.000 habitantes.
 
-A seguir é calculada a retenção desagredada por porte da cidade. A não significância estatística do teste de fisher indica que não há associação entre o porte e o churn.
+A seguir é calculada a retenção desagredada por porte da cidade. A significância estatística do teste de fisher indica que há associação entre o porte e o churn.
 
 ```{r}
 corr_porte_churn <- data |> 
@@ -2118,7 +2154,7 @@ shapiro.test(data$taxa_homicidio)
 wilcox.test(taxa_homicidio ~ churn, data = data, alternative = "two.sided")
 ```
 
-Abaixo o boxplot da nota do IDEB anos iniciais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que a nota ideb dos municípios com maior grau de retenção tem são ligeiramente maior.
+Abaixo o boxplot da nota do IDEB anos iniciais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que a nota ideb dos municípios com maior grau de retenção são ligeiramente maior.
 
 ```{r}
 
@@ -2216,7 +2252,7 @@ shapiro.test(data$equpamentos_culturais)
 wilcox.test(equpamentos_culturais ~ churn, data = data, alternative = "two.sided")
 ```
 
-Abaixo o boxplot da **distância da capital** em km dos municípios desagregado pelo churn. Os testes indicam **não normalidade** na distribuição de probabilidade e diferença estatística **não significativa** entre os municípios que tiveram profissionais que migraram e permaneceram.
+Abaixo o boxplot da distância da capital em km dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
 
 ```{r}
 data |> 
@@ -2241,6 +2277,8 @@ wilcox.test(distancia_capital ~ churn, data = data, alternative = "two.sided")
 ```
 
 ## 4. Diagrama de Sunkey
+
+E nessa última seção, é grafada um diagrama de sunkey que ilustrar como os médicos se deslocaram a nível estadual desde o início no programa até 01/12/2023 que é o período que marca 4,5 anos desde o 18º Ciclo do programa.
 
 ```{r}
 teste <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_sankeyplot.xlsx") |> 
