@@ -1,12 +1,12 @@
 ---
-title: "sa_fluxo_migratorio"
+title: "database_pmmb"
 format: html
 editor: visual
 ---
 
-# Analysis: Programa Mais Médicos para o Brasil (pmmb)
+# Database: Programa Mais Médicos para o Brasil (pmmb)
 
-O objetivo desse trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
+O objetivo desse trabalho é **elaborar uma base de dados** associado ao Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
 
 O programa prevê vigência de três anos e a seleção é estruturada em **duas fases**:
 
@@ -63,9 +63,19 @@ library(plm)
 
 ## 1. Montagem da base de dados.
 
-## 1.1. Tratamento de dados do Mais Médicos
+Seguindo o objetivo do script, a elaboração da base de dados com os fatores (variáveis) relacionados aos médicos participantes do programa seguirá a seguinte estrutura:
 
-A primeira etapa consiste na elaboração da base de dados com tratamento do Mais Médicos.
+1.1 **Tratamento preliminar**: Com base na identificação dos médicos através de webscraping, é realizada a validação dos profissionais que tomaram posse junto ao levatamento do histórico profissional.
+
+1.2 **Atributos a nível individuo**: São levantadas as variáveis relacionados aos médicos de forma individualizada.
+
+1.3 **Atributos a nível estabelecimento**: São levantadas as variáveis que caracterizam os estabelecimentos de saúde que receberam médicos do programa.
+
+1.4 **Atributos a nível município**: São levantadas as variáveis que caracterizam os municípios que receberam médicos do programa.
+
+Conforme estrutura mencionada, a elaboração inicia com o tratamento preliminar que é realizado logo a seguir.
+
+## 1.1. Tratamento preliminar
 
 A partir dos resultados do edital do 18º Ciclo do PMMB, identificamos os médicos e realizamos o processo de *web scrapping* para identificar o CNS desses profissionais no site CNES.
 
@@ -172,7 +182,7 @@ lista_cpf <- CNES_cns |>
 
 Observa-se que a lista de CPF's retornou apenas 2034 observações. Esse número reduzido é devido a médicos duplicados em razão de registros com letras de nomes trocadas. Agora já identificado os CPF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF.
 
-Observação: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
+Observação: Este procedimento foi realizado pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
 
 ``` sql
 SELECT a.COMPETEN,
@@ -235,7 +245,7 @@ O próximo passo será unir as duas bases:
 
 1\) a de inscrição, pois estas trazem dados sobre o inscrito (ex.: local onde foi alocado, ano de formação)
 
-2\) e a base do CNES-PF com o acompanhamento dos indivíduos. Os resultados gerados pela consulta.
+2\) e a base do CNES-PF com o histórico profissional dos indivíduos. Os resultados gerados pela consulta.
 
 No entanto, como a base de inscrição não possui a variável CPF, primeiro será necessário adicioná-la a essa base para, em seguida, realizar um *left_join* com a base CNES_cpf.
 
@@ -255,7 +265,7 @@ cns_inscricao <-
 
 ```
 
-Agora adicionada a coluna de CPF na base cns_inscricao, faremos um left join entre ela e a base CNES_cns.
+Agora adicionada a coluna de CPF na base cns_inscricao, faremos um left join entre ela e a base CNES_cpf.
 
 ```{r}
 
@@ -333,9 +343,11 @@ base_tratada2 <-
 
 ## 1.2. Atributos a nível indivíduo
 
+A seguir são levantadas as variáveis relacionados aos médicos de forma individualizada, tais como, idade, tempo de formado, média de vínculos, etc.
+
 ### 1.2.1 Atuação prévia
 
-Vamos acessar para ver se aquele indivíduo atuou na cidade onde foi destinado em anos anteriores.
+A seguir são identificados os médicos que tiveram atuação no município de alocação em anos anteriores ao edital do programa e por quantos anos.
 
 ```{r}
 
@@ -354,7 +366,7 @@ atuacao <-
 
 ```
 
-Depois de preparar a base, vamos juntar à base original.
+Depois de identificado, as informações são agregadas a base original.
 
 ```{r}
 
@@ -367,13 +379,13 @@ base_tratada3 <-
 
 base_tratada3$atuacao_previa_no_municipio[is.na(base_tratada3$atuacao_previa_no_municipio)] <- "Não"
 
-base_tratada3$anos_atuacao[is.na(base_tratada3$anos_atuacao)] <- 0
+base_tratada3$anos_atuacao_mesmo_municipio[base_tratada3$atuacao_previa_no_municipio == "Não"] <- 0
 
 ```
 
 ### 1.2.2 Quantidade média de vínculos enquanto está na mesma cidade
 
-Para isso, vamos verificar, desde de meados de 2019, quantos vínculos o indivíduos tinha por competência no mesmo município onde ele foi alocado.
+Para isso, vamos verificar, a partir de meados de 2019, quantos vínculos o indivíduos tinha por competência no mesmo município onde ele foi alocado.
 
 ```{r}
 
@@ -404,7 +416,7 @@ base_tratada4 <-
 
 ### 1.2.3 Quantidade de meses que fica no município onde foi designado
 
-A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação. Esta uma das variáveis de desfecho.
+A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação. Esta é uma das variáveis de desfecho.
 
 ```{r}
 
@@ -474,6 +486,8 @@ base_tratada6$churn[is.na(base_tratada6$churn)] <- "migrou"
 
 ### 1.2.5 Identificando a UF do médico após 4,5 anos
 
+A seguir é identificada a unidade federativa em que o médico estava atuando após 4,5 anos de início do programa.
+
 ```{r}
 
 #Identificando a UF em que o médico está trabalhando na referida competência
@@ -511,9 +525,8 @@ base_tratada6.1 <- base_tratada6 %>%
 
 #Identificando a UF que o médico está trabalhando após 4,5 anos
 base_tratada6.2 <- base_tratada6.1 |> 
-  mutate(competen_final = as.Date("2023-12-01")) |> 
-  mutate(uf_final = ifelse(churn == "permanece", uf_destino, uf_exercicio[competen == competen_final])) |> 
-  select(-competen_final, -uf_exercicio)
+  mutate(uf_final = ifelse(churn == "permanece", uf_destino, uf_exercicio[competen == as.Date("2023-12-01")])) |> 
+  select(-uf_exercicio)
 
 # Exportando a base apenas com variáveis para gerar gráfico de transição (opcional)
 #write_xlsx(base_grafico5, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_sankeyplot.xlsx" )
@@ -521,7 +534,7 @@ base_tratada6.2 <- base_tratada6.1 |>
 
 ### 1.2.6 Idade ao entrar no programa
 
-O objetivo desta análise é verificar a idade do indivíduo na primeira competência que ele começa a trabalhar no programa.
+O objetivo desta análise é verificar a idade do indivíduo na primeira competência em que ele começa a trabalhar no programa.
 
 ```{r}
 
@@ -537,9 +550,6 @@ idade <-
                                units = "days")) / 365.25) |> 
   select(cpf_prof, idade_em_anos) |> 
   distinct()
-
-
-
 
 ```
 
@@ -575,7 +585,7 @@ base_tratada8 <-
 
 ### 1.2.8 Tempo formado
 
-O próximo passo é verificar quanto tempo a pessoa já está formada.
+O próximo passo é verificar a quanto tempo a pessoa já está formada ao iniciar no programa.
 
 ```{r}
 
@@ -609,18 +619,12 @@ base_tratada9 <-
 
 ```
 
-Por fim, feitos todos os tratamentos, vamos manter apenas uma observação por indivíduo.
+Por fim, feitos todos os tratamentos, vamos manter apenas uma observação por indivíduo, referente a primeira competência em que o médico ingressou no programa.
 
 ```{r}
 
 base_tratada10 <- 
   base_tratada9 |> 
-    filter(tp_unid == "01"|
-           tp_unid == "02"|
-           tp_unid == "32"|
-           tp_unid == "71"|
-           tp_unid == "72"|
-           tp_unid == "74") |> 
   filter(alocacao == "Alocado") |> 
   group_by(cpf_prof) |>
   slice_min(order_by = competen, with_ties = FALSE) |>
@@ -628,6 +632,8 @@ base_tratada10 <-
 ```
 
 ## 1.3. Atributos a nível estabelecimento
+
+Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos que receberam médicos do programa, tais como, número de leitos e profissionais.
 
 ### 1.3.1 Número de leitos das unidades
 
@@ -777,8 +783,6 @@ GROUP BY
         categoria
 ```
 
-asfd
-
 ```{r}
 
 # codigo para acessar dados de datalake proprio 
@@ -810,7 +814,7 @@ equipe_saude <- sqlQuery(channel,
 
 ```
 
-asdf
+A seguir são filtrados apenas as equipes dos estabelecimentos presentes na base de dados.
 
 ```{r}
 
@@ -842,7 +846,7 @@ equipe_saude3 <-
 
 ```
 
-base
+Juntando a base
 
 ```{r}
 
@@ -851,88 +855,21 @@ base_tratada12 <-
     left_join(equipe_saude3,
               by = c("cnes"="CNES"))
   
-  
-```
-
-### 1.3.2 Número de equipamentos das unidade
-
-``` sql
-WITH 
-      tratamento_inicial
-  AS(
-      SELECT 
-          CONCAT(a.TIPEQUIP, a.CODEQUIP) AS id_equipamento,
-          a.CNES, 
-          a.CODUFMUN,
-          a.TPGESTAO, 
-          a.TP_UNID, 
-          CAST(a.QT_USO AS INT) AS QT_USO, 
-          a.COMPETEN, 
-          a.uf,
-          b.no_grupo, 
-          b.no_equip
-      FROM Dados.CNES.EQ a
-          LEFT JOIN Dados.cnes."tp_equip.parquet" b
-          ON id_equipamento = CAST(id_equip AS CHARACTER)
-      WHERE SUBSTR(COMPETEN, 5, 2) = '01' AND
-            CAST(SUBSTR(COMPETEN, 1, 4) AS INTEGER) >= 2019
-  )
-  
-  SELECT CNES,
-         ID_EQUIPAMENTO, 
-         NO_EQUIP, 
-         NO_GRUPO,
-         AVG(QT_USO) AS QT_EQUIPAMENTO_USO
-  FROM tratamento_inicial
-  GROUP BY CNES,
-        ID_EQUIPAMENTO, 
-        NO_EQUIP,
-        NO_GRUPO
-  ORDER BY qt_equipamento_uso DESC
-```
-
-```{r}
-# codigo para acessar dados de datalake proprio 
-
-dremio_host <- Sys.getenv("endereco")
-dremio_port <- Sys.getenv("port")
-dremio_uid <- Sys.getenv("uid")
-dremio_pwd <- Sys.getenv("datalake")
-
-
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
-                                     AUTHENTICATIONTYPE=Basic Authentication;
-                                     CONNECTIONTYPE=Direct", 
-                         dremio_host, 
-                         dremio_port, 
-                         dremio_uid, 
-                         dremio_pwd))
-
-query <- 'SELECT * FROM "@alef_santos"."pmmb_equipamentos"'
-
-equipamentos <- sqlQuery(channel, 
-                         query,
-                         as.is = TRUE)
-```
-
-```{r}
-
-
-
-teste <- equipamentos |> 
-  filter(is.na(NO_GRUPO)) |> 
-  distinct(ID_EQUIPAMENTO)
 ```
 
 ## 1.4. Atributos a nível município
 
-Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Divideremos esses atributos em grupos.
+Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Essas variáveis são agrupadas de acordo com os seguintes aspectos:
+
+1.  Econômicos;
+2.  Saúde;
+3.  Segurança pública;
+4.  Educação;
+5.  Saúde.
 
 ### 1.4.1 Indicadores econômicos
+
+Abaixo, conforme estrutura mencionada, as variáveis que indicam nível de atividade econômica.
 
 #### 1.4.1.1 População e porte
 
@@ -963,6 +900,8 @@ base_tratada13 <- base_tratada12 |>
 ```
 
 #### 1.4.1.2 PIB per capita
+
+A seguir, o PIB per capita dos municípios referentes ao ano de 2019 que marca o inicio do edital 18 do programa.
 
 ``` sql
 SELECT codigo_municipio, 
@@ -1014,7 +953,7 @@ base_tratada14 <- base_tratada13 |>
 
 #### 1.4.1.3 População ocupada
 
-Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
+Os dados do quantitativo de população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
 
 E calculamos o percentual da população ocupada com os dados do Censo 2022.
 
@@ -1041,9 +980,11 @@ base_tratada15 <-
 
 ### 1.4.2 Indicadores de saúde
 
+A seguir, as variáveis relacionadas a qualidade e acesso à saúde.
+
 #### 1.4.2.1 Cobertura de plano de saúde
 
-A partir dos dados da base XXXXX, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
+A partir dos dados da Agência Nacional de Saúde, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
 
 ``` sql
 
@@ -1093,7 +1034,7 @@ base_tratada16 <- base_tratada15 |>
 
 #### 1.4.2.2 Número vagas de medicina
 
-A seguir, adicionaremos a variável número de vagas de medicina por município da base de dados XXXXXX, e calcularemos o número de vagas por mil habitantes.
+A seguir, adicionaremos a variável número de vagas de medicina por município a partir de dados do INEP, e calcularemos o número de vagas por mil habitantes.
 
 ``` sql
 SELECT cod_ibge, SUM(vagas) AS vagas_medicina FROM "Open Analytics Layer"."Educação"."Quantidade de vagas, matriculados, concluintes e inscritos em curso superior por município"
@@ -1172,6 +1113,8 @@ base_tratada19 <- base_tratada18 |>
 
 ### 1.4.3 Indicadores de segurança pública
 
+A seguir, as variáveis relacionadas a segurança pública do município.
+
 #### 1.4.3.1 Taxa de homicídio
 
 Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número total de mortes por homicídio ÷ População total (x100.000).
@@ -1216,6 +1159,8 @@ base_tratada22 <- base_tratada21 |>
 
 ### 1.4.4 Indicadores de educação
 
+A seguir, as variáveis relacionadas ao aspecto educacional do município.
+
 #### 1.4.4.1 IDEB anos iniciais
 
 Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
@@ -1245,6 +1190,8 @@ base_tratada24 <- base_tratada23 |>
 ```
 
 ### 1.4.5 Indicadores de infraestrutura
+
+A seguir, as variáveis relacionadas a infraestrutura do município.
 
 #### 1.4.5.1 Investimento público em infraestrutura urbana por habitante
 
@@ -1288,12 +1235,11 @@ base_tratada27 <- base_tratada26 |>
   left_join(equip_culturais, by = c("codufmun" = "id")) |> 
   select(-Município)
 
-base_tratada28 <- base_tratada27 |> 
-  mutate(anos_atuacao_mesmo_municipio = ifelse(is.na(anos_atuacao), 0, anos_atuacao)) |> 
-  select(-anos_atuacao)
 ```
 
 #### 1.4.5.4 Distância da capital
+
+Este dado foi coletado do XXXX, e mostra a distância dos municípios que receberam médicos do programa até a capital da respectiva unidade federativa.
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
@@ -1329,9 +1275,9 @@ distancia_capital <- distancia_capital |>
   select(cod_municipio, km) |> 
   rename(distancia_capital = km)
 
-base_tratada28$ibge_aloc <- as.character(base_tratada28$ibge_aloc)
+base_tratada27$ibge_aloc <- as.character(base_tratada27$ibge_aloc)
 
-base_tratada29 <- base_tratada28 |> 
+base_tratada28 <- base_tratada27 |> 
   left_join(distancia_capital, by = c("ibge_aloc" = "cod_municipio"))
 
 #write_xlsx(base_tratada29, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
