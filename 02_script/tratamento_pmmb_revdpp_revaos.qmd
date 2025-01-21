@@ -65,7 +65,7 @@ library(plm)
 
 Seguindo o objetivo do script, a elaboração da base de dados com os fatores (variáveis) relacionados aos médicos participantes do programa seguirá a seguinte estrutura:
 
-1.1 **Tratamento preliminar**: Com base na identificação dos médicos através de webscraping, é realizada a validação dos profissionais que tomaram posse junto ao levatamento do histórico profissional.
+1.1 **Tratamento preliminar**: A partir da identificação dos médicos por meio de webscraping, realiza-se a validação dos profissionais empossados com base no levantamento do histórico profissional.
 
 1.2 **Atributos a nível individuo**: São levantadas as variáveis relacionados aos médicos de forma individualizada.
 
@@ -859,13 +859,7 @@ base_tratada12 <-
 
 ## 1.4. Atributos a nível município
 
-Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Essas variáveis são agrupadas de acordo com os seguintes aspectos:
-
-1.  Econômicos;
-2.  Saúde;
-3.  Segurança pública;
-4.  Educação;
-5.  Saúde.
+Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Essas variáveis são agrupadas de acordo sobre os aspectos econômicos, de saúde, segurança pública, educação e infraestrutura.
 
 ### 1.4.1 Indicadores econômicos
 
@@ -1239,7 +1233,7 @@ base_tratada27 <- base_tratada26 |>
 
 #### 1.4.5.4 Distância da capital
 
-Este dado foi coletado do XXXX, e mostra a distância dos municípios que receberam médicos do programa até a capital da respectiva unidade federativa.
+Este dado foi coletado da plataforma Google Maps, e mostra a distância dos municípios que receberam médicos do programa até a capital da respectiva unidade federativa.
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
