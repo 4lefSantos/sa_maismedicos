@@ -1107,7 +1107,7 @@ base_tratada19 <- base_tratada18 |>
 
 ### 1.4.3 Indicadores de segurança pública
 
-A seguir, as variáveis relacionadas a segurança pública do município.
+A seguir, três variáveis foram consideradas como indicadores: taxa de homício, mortes por armas de fogo e taxa de feminicídio, mas os dois últimos foram descartados pelos analistas por entender que a taxa de homicídio já é suficientemente representativa.
 
 #### 1.4.3.1 Taxa de homicídio
 
@@ -1120,34 +1120,6 @@ tx_homicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indica
 
 base_tratada20 <- base_tratada19 |> 
   left_join(tx_homicidio, by = c("codufmun" = "id")) |> 
-  select(-Município)
-```
-
-#### 1.4.3.2 Mortes por armas de fogo
-
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número de óbitos por armas de fogo ÷ População total do município (x100.000).
-
-```{r}
-armas_fogo <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
-  select(id, Município, mortes_armasdefogo) |> 
-  mutate(id = substr(id, 1, 6))
-
-base_tratada21 <- base_tratada20 |> 
-  left_join(armas_fogo, by = c("codufmun" = "id")) |> 
-  select(-Município)
-```
-
-#### 1.4.3.3 Taxa de feminicídio
-
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Mortalidade por causas externas de mulheres ÷ Total de mulheres (x100.000).
-
-```{r}
-taxa_feminicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
-  select(id, Município, feminicidio) |> 
-  mutate(id = substr(id, 1, 6))
-
-base_tratada22 <- base_tratada21 |> 
-  left_join(taxa_feminicidio, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
 
@@ -1164,7 +1136,7 @@ ideb_inicio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicad
   select(id, Município, ideb_anosiniciais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada23 <- base_tratada22 |> 
+base_tratada21 <- base_tratada20 |> 
   left_join(ideb_inicio, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1178,7 +1150,7 @@ ideb_final <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicado
   select(id, Município, ideb_anosfinais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada24 <- base_tratada23 |> 
+base_tratada22 <- base_tratada21 |> 
   left_join(ideb_final, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1197,7 +1169,7 @@ infraestrutura <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indi
   select(id, Município, investimento_infraestrutura) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada25 <- base_tratada24 |> 
+base_tratada23 <- base_tratada22 |> 
   left_join(infraestrutura, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1211,7 +1183,7 @@ equip_esportivos <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/in
   select(id, Município, equipamentos_esportivos) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada26 <- base_tratada25 |> 
+base_tratada24 <- base_tratada23 |> 
   left_join(equip_esportivos, by = c("codufmun" = "id")) |> 
   select(-Município)
 ```
@@ -1225,7 +1197,7 @@ equip_culturais <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/ind
   select(id, Município, equpamentos_culturais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada27 <- base_tratada26 |> 
+base_tratada25 <- base_tratada24 |> 
   left_join(equip_culturais, by = c("codufmun" = "id")) |> 
   select(-Município)
 
@@ -1269,9 +1241,9 @@ distancia_capital <- distancia_capital |>
   select(cod_municipio, km) |> 
   rename(distancia_capital = km)
 
-base_tratada27$ibge_aloc <- as.character(base_tratada27$ibge_aloc)
+base_tratada25$ibge_aloc <- as.character(base_tratada25$ibge_aloc)
 
-base_tratada28 <- base_tratada27 |> 
+base_tratada26 <- base_tratada25 |> 
   left_join(distancia_capital, by = c("ibge_aloc" = "cod_municipio"))
 
 #write_xlsx(base_tratada29, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
