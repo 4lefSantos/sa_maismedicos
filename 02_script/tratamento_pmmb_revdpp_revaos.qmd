@@ -107,7 +107,10 @@ cns_inscricao <-
 cns_inscricao <- 
   cns_inscricao |> 
   mutate(sexo = get_gender(nome)) |> 
-  filter(!is.na(sexo))
+  filter(!is.na(sexo)) |> 
+  mutate(sexo = case_when(sexo == "Male" ~ "Masculino",
+                          sexo == "Female" ~ "Feminino",
+                          TRUE ~ sexo))
 
 ```
 
@@ -1246,5 +1249,5 @@ base_tratada25$ibge_aloc <- as.character(base_tratada25$ibge_aloc)
 base_tratada26 <- base_tratada25 |> 
   left_join(distancia_capital, by = c("ibge_aloc" = "cod_municipio"))
 
-#write_xlsx(base_tratada29, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
+#write_xlsx(base_tratada26, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/database.xlsx")
 ```
