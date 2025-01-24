@@ -459,8 +459,8 @@ churn <-
   filter(competen == "2023-12-01") |> 
   mutate(churn = 
            if_else(codufmun == ibge_aloc, 
-                   "migrou", 
-                   "permanece")) |> 
+                   "Migrou", 
+                   "Permaneceu")) |> 
   select(cpf_prof, churn) |> 
   distinct() |>  
 # Se o individuo estiver atuando no mesmo municipio e em outra localidade limitrofe, vamos marcar como "permanece". O codigo abaixo faz isso 
@@ -483,7 +483,7 @@ base_tratada6 <-
             by = c("cpf_prof"))
 
 
-base_tratada6$churn[is.na(base_tratada6$churn)] <- "migrou"
+base_tratada6$churn[is.na(base_tratada6$churn)] <- "Migrou"
 
 ```
 
@@ -972,7 +972,8 @@ base_tratada15 <-
             by = c("codufmun" = "cod_ibge", 
                    "ano" = "ano")) |> 
   mutate(tx_pop_ocupada = pop_ocupada/populacao) |> 
-  select(-pop_ocupada)
+  select(-pop_ocupada) |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100)
 ```
 
 ### 1.4.2 Indicadores de saúde
