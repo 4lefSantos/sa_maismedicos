@@ -107,7 +107,10 @@ cns_inscricao <-
 cns_inscricao <- 
   cns_inscricao |> 
   mutate(sexo = get_gender(nome)) |> 
-  filter(!is.na(sexo))
+  filter(!is.na(sexo)) |> 
+  mutate(sexo = case_when(sexo == "Male" ~ "Masculino",
+                          sexo == "Female" ~ "Feminino",
+                          TRUE ~ sexo))
 
 ```
 
@@ -456,8 +459,8 @@ churn <-
   filter(competen == "2023-12-01") |> 
   mutate(churn = 
            if_else(codufmun == ibge_aloc, 
-                   "migrou", 
-                   "permanece")) |> 
+                   "Migrou", 
+                   "Permaneceu")) |> 
   select(cpf_prof, churn) |> 
   distinct() |>  
 # Se o individuo estiver atuando no mesmo municipio e em outra localidade limitrofe, vamos marcar como "permanece". O codigo abaixo faz isso 
@@ -480,7 +483,7 @@ base_tratada6 <-
             by = c("cpf_prof"))
 
 
-base_tratada6$churn[is.na(base_tratada6$churn)] <- "migrou"
+base_tratada6$churn[is.na(base_tratada6$churn)] <- "Migrou"
 
 ```
 
@@ -969,7 +972,8 @@ base_tratada15 <-
             by = c("codufmun" = "cod_ibge", 
                    "ano" = "ano")) |> 
   mutate(tx_pop_ocupada = pop_ocupada/populacao) |> 
-  select(-pop_ocupada)
+  select(-pop_ocupada) |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100)
 ```
 
 ### 1.4.2 Indicadores de saúde
@@ -1246,5 +1250,5 @@ base_tratada25$ibge_aloc <- as.character(base_tratada25$ibge_aloc)
 base_tratada26 <- base_tratada25 |> 
   left_join(distancia_capital, by = c("ibge_aloc" = "cod_municipio"))
 
-#write_xlsx(base_tratada29, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
+#write_xlsx(base_tratada26, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/database.xlsx")
 ```
