@@ -1,0 +1,189 @@
+---
+title: "sa_migracao"
+format: html
+editor: visual
+---
+
+```{r}
+library(RODBC)
+library(tidyverse)
+library(readxl)
+
+```
+
+``` sql
+SELECT a.CNES,
+       a.CPF_PROF, 
+       a.CODUFMUN, 
+       a.TP_UNID, 
+       a.CBO, 
+       a.NOMEPROF, 
+       a.CNS_PROF, 
+       a.HORAHOSP, 
+       a.HORA_AMB, 
+       a.HORAOUTR, 
+       a.COMPETEN,
+       b.uf_sigla, 
+       b.municipio
+FROM Dados.cnes.PF a
+    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" b
+        ON a.CODUFMUN = CAST(b.cod_municipio AS CHARACTER)
+WHERE a.CNES IN ('2356244', '2614162', '2799375', '2631059') AND CAST(a.COMPETEN AS NUMERIC) >= 201501 AND 
+    (substr(a.CBO, 1, 3) = '225' OR
+    a.CBO = '223505' OR
+    a.CBO = '322205' OR
+    a.CBO = '515105')
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(
+                    sprintf("DRIVER=Dremio Connector;
+                             HOST=%s;
+                             PORT=%s;
+                             UID=%s;
+                             PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."sequence_analysis_unidades"'
+
+
+consulta_unidades <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+
+```
+
+```{r}
+cpf <- consulta_unidades |> 
+  distinct(cns)
+
+cns <- consulta_unidades |> 
+  distinct(CNS_PROF)
+
+```
+
+``` sql
+SELECT a.COMPETEN,
+       a.CODUFMUN, 
+       c.uf_sigla,
+       c.municipio_pad,
+       b.FANTASIA,
+       a.CNES, 
+       a.TP_UNID,
+       a.CNS_PROF,
+       a.CPF_PROF,
+       a.NOMEPROF,
+       a.PROF_SUS,
+       a.vinculac,
+       a.HORAHOSP,
+       a.HORA_AMB,
+       a.HORAOUTR
+FROM Dados.cnes.PF a
+    LEFT JOIN Dados.cnes.CADGER b
+        ON a.CNES = b.CNES
+    LEFT JOIN "Analytics Layer".Territorial."Municípios - Hierarquia Completa" c
+        ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
+WHERE CNS_PROF IN (lista)
+ORDER BY 
+    COMPETEN
+```
+
+```{r}
+
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(
+                    sprintf("DRIVER=Dremio Connector;
+                             HOST=%s;
+                             PORT=%s;
+                             UID=%s;
+                             PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."sequence_analysis_consulta_cns"'
+
+
+consulta_cns <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+
+```
+
+```{r}
+
+consulta_cns <- consulta_cns |> 
+  filter(COMPETEN >= "201501") |> 
+  mutate(unidade_de_analise = ifelse(CNES %in% c('2356244', '2614162', '2799375', '2631059'), "Sim", "Não"))
+
+tratamento_base <- consulta_cns |> 
+  select(-PROF_SUS, -vinculac, -HORAHOSP, -HORA_AMB, -HORAOUTR, - TP_UNID)
+
+
+```
+
+```{r}
+pop_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+  mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
+  mutate(populacao = as.numeric(populacao))
+
+tratamento_base <- tratamento_base |> 
+  left_join(pop_mun, by = c("CODUFMUN" = "cod_mun")) |> 
+  select(-mun)
+
+#Classificando o porte dos municípios
+tratamento_base <- tratamento_base |> 
+  mutate(porte = case_when((populacao < 20000) ~ "PP-I",
+                           (populacao >= 20000 & populacao < 50000) ~ "PP-II",
+                           (populacao >= 50000 & populacao < 100000) ~ "MP",
+                           (populacao >= 100000 & populacao < 900000) ~ "GP",
+                           (populacao >= 900000) ~ "Metrópole",
+                           TRUE ~ "Outros casos"))
+```
+
+```{r}
+
+tratamento_base <- tratamento_base |> 
+  group_by(CNS_PROF, COMPETEN) |> 
+  mutate(vinculos = n()) |> 
+  ungroup()
+
+tratamento_base <- tratamento_base |> 
+  group_by(CNS_PROF, COMPETEN) |> 
+  filter(
+    # Se existir `unidade == "Sim"` para o CPF, mantém apenas essas linhas
+    if (any(unidade_de_analise == "Sim")) unidade_de_analise == "Sim" 
+    # Caso contrário, mantém todas as linhas
+    else TRUE
+  ) |> 
+  ungroup()
+
+teste <- tratamento_base |> 
+  mutate(cidade = case_when(
+    unidade_de_analise == "Sim" ~ "Sim",
+    unidade_de_analise == "Não" ~ as.character(max(populacao, na.rm = TRUE)),
+    TRUE ~ as.character(NA)
+  ))
+
+```

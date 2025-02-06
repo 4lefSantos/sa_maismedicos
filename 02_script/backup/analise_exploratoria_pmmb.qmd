@@ -1,0 +1,2336 @@
+---
+title: "Análise exploratória de dados: Programa Mais Médicos para o Brasil (pmmb)"
+format: html
+editor: visual
+---
+
+# Análise Exploratória de Dados: Programa Mais Médicos para o Brasil (pmmb)
+
+Nesse script será realizada a análise exploratória de dados da base tratada em outro script do Programa Mais Médicos para o Brasil (pmmb), afim de entender o comportamento das variáveis. Os dados são referentes aos médicos participantes do 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019) do pmmb.
+
+A análise será realizada seguindo as seguintes etapas:
+
+-   Classificação e descrição das variáveis;
+
+-   Medidas de tendência central;
+
+-   Correlações entre as variáveis;
+
+-   Diagrama de fluxo (Sankey).
+
+Assim, iniciaremos caracterizando as variáveis e examinando sua distribuição por meio de gráficos como boxplots, histogramas e identificação de outliers. Em seguida, realizaremos uma análise desagregada considerando o churn, ou seja, distinguindo entre médicos que permaneceram ou migraram, respeitando a estrututura de atributos relacionados ao indivíduo, estabelecimento e município. E por fim, o diagrama de Sankey para entender como os profissionais transitaram no território brasileiro por região no período de 4,5 anos após o início do programa.
+
+Abaixo as bibliotecas que serão utilizadas.
+
+```{r}
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(readxl)
+library(writexl)
+library(ggtext)
+library(skimr)
+library(summarytools)
+library(datawizard)
+library(psych)
+library(patchwork)
+library(scales)
+library(ggpubr)
+library(GGally)
+library(networkD3)
+library(htmlwidgets)
+library(plotly)
+
+#install.packages("plotly")
+#install.packages("htmlwidgets")
+#install.packages("networkD3")
+#install.packages("datawizard")
+#psych::describe(data$tec_aux_enf)
+```
+
+## 1. Classificação e descrição de variáveis
+
+Primeiro será carregada a base de dados.
+
+```{r}
+data <- read_xlsx("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_tratada.xlsx")
+
+head(data)
+```
+
+Observa-se que cada observação corresponde a um médico na primeira competência de alocação no município de destinação.
+
+### 1.1 Atributos a nível indivivíduo
+
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| Variáveis qualitativas                   | Descrição                                                                                                          |
++==========================================+====================================================================================================================+
+| nomeprof                                 | Nome de identificação                                                                                              |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| cpf_prof                                 | Cadastro de Pessoa Física (CPF) criptografado                                                                      |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| cns_prof                                 | Cartão Nacional de Saúde (CNS), número do documento de identificação do usuário do SUS                             |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| data_nascimento                          | Data de nascimento                                                                                                 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| data_formacao                            | Dada de formatura                                                                                                  |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| sexo                                     | Sexo                                                                                                               |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| participou_pmmb                          | Variável binária se o médico já participou do programa em editais anteriores                                       |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| competen                                 | Competência que o médico ingressou no programa                                                                     |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| ibge_aloc, municipio_destino, uf_destino | \                                                                                                                  |
+|                                          | Localidade em que o médico foi designado                                                                           |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| atuacao_previa                           | Variável binária que identifica se o médico já atuou anteriormente no município em que foi destinado               |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| cnes                                     | Cadastro Nacional de Estabelecimentos de Saúde (CNES) é o número que identificação do estabelecimento              |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| Prorrogado                               | Variável binária que identifica os médicos que tiveram a participação no programa renovada                         |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| churn                                    | Variável binária que identifica os médicos que permaneceram no município em que foi destinado após 4,5 anos        |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| atuacao_previa_no_municipio              | Variável binária que identifica os médicos que já atuaram no município em que foi destinado em ano anterior a 2019 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| uf_final                                 | Variável que identifica a UF que o médico está após 4,5 anos do início do programa                                 |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| Variáveis quantitativas | Descrição                                                                                           |
++=========================+=====================================================================================================+
+| anos_atuacao            | Quantidade de anos que o médico atuou antes do inicio do programa no município em que foi destinado |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| media                   | Quantidade média de vínculos que os médicos exerceram após inicio no programa                       |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| idade_em_anos           | Idade do médico na competência de ingresso no programa                                              |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+| anos_formacao           | Quantidade de anos desde a formatura                                                                |
++-------------------------+-----------------------------------------------------------------------------------------------------+
+
+### 1.2 Atributos a nível estabelecimento
+
++------------------------+-------------------------------------------------+
+| Variáveis qualitativas | Descrição                                       |
++========================+=================================================+
+| tp_unid                | Número que identifica o tipo de estabelecimento |
++------------------------+-------------------------------------------------+
+
++----------------------------+---------------------------------------------------------------------+
+| Variáveis quantitativas    | Descrição                                                           |
++============================+=====================================================================+
+| agente_saude               | Quantidade de agentes de saúde comunitário em tempo integral        |
++----------------------------+---------------------------------------------------------------------+
+| dentista                   | Quantidade de cirurgiões-dentistas em tempo integral                |
++----------------------------+---------------------------------------------------------------------+
+| enfermeiro                 | Quantidade de enfermeiros em tempo integral                         |
++----------------------------+---------------------------------------------------------------------+
+| tec_aux_enf                | Quantidade de Técnicos e Auxiliares de Enfermagem em tempo integral |
++----------------------------+---------------------------------------------------------------------+
+| Prefixos "leitos\_\[...\]" | Quantidade de leitos                                                |
++----------------------------+---------------------------------------------------------------------+
+
+### 1.2 Atributos a nível município
+
+| Variáveis qualitativas | Descrição       |
+|------------------------|-----------------|
+| porte                  | Porte da cidade |
+
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| Variáveis quantitativas     | Descrição                                                                                          |
++=============================+====================================================================================================+
+| pib_percapita               | Produto Interno Bruto (PIB) per capita (R\$)                                                       |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| tx_pop_ocupada              | Taxa de ocupação da população (%)                                                                  |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| cobertura_saude             | Taxa da população que possui plano de saúde (%)                                                    |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| vagas_medicina_milhab       | Quantidade de vagas de medicina em faculdades no município                                         |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| orcamento_saude             | Orçamento destinado a saúde per capita (R\$)                                                       |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| esgotamento_sanitario       | População total atendida com esgotamento sanitário (%)                                             |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| taxa_homicidio              | Número de mortes por homicídio por 100 mil habitantes                                              |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| mortes_armasdefogo          | Número de mortes por armas de fogo por 100 mil habitantes                                          |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| feminicidio                 | Mortes por causas externas de mulheres por 100 mil mulheres                                        |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| ideb_anosiniciais           | Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais       |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| ideb_anosfinais             | Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Finais         |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| investimento_infraestrutura | Valor do investimento público em infraestrutura per capita                                         |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| equipamentos_esportivos     | Número de equipamentos esportivos públicos por 100 mil habitantes                                  |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| equipamentos_culturais      | Número de centros culturais, espaços e casas de cultura públicos e privados por 100 mil habitantes |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+| distancia_capital           | Distância em km da capital do Estado                                                               |
++-----------------------------+----------------------------------------------------------------------------------------------------+
+
+## 2. Medidas de tendência central
+
+Conforme introduzido anteriormente, iremos analisar as medidas de tendência central das variáveis, no caso das variáveis quantativas, sendo elas, valor mínimo e máximo, mediana, primeiro e terceiro quartil e valores máximo e mínimo com base na diferença interquatílica para identificação dos outliers representando-as em forma de boxplot. E no caso de variáveis qualitativas, calcularemos a participação relativa das categorias, representando-as em forma de gráficos.
+
+### 2.1 Atributos a nível indivivíduo
+
+Os atributos entendidos como referentes ao indivíduo, são variáveis que se referem aos médicos na sua individualidade, tais como sexo, idade, anos de formação e outros.
+
+#### 2.1.1 Sexo
+
+Abaixo, na análise da variável sexo, observa-se que do total de 1647 médicos participantes do programa, 55% são homens e 45% mulheres. Este resultado indica equilíbrio (balanceamento) da base por sexo.
+
+```{r}
+
+sexo <- data |> 
+  group_by(sexo) |> 
+  summarise(total = n()) |> 
+  mutate(percentual = round(total / sum(total) * 100)) |> 
+  mutate(sexo = ifelse(sexo == "Female", "Feminino", "Masculino"))
+
+
+sexo |> 
+  ggplot(aes(x = "", y = percentual, fill = sexo)) +
+  geom_bar(stat = "identity", widht = 1) + 
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
+            position = position_stack(vjust = 0.5)) +
+  labs(fill = "Atuação prévia no município?") +
+  theme_void()
+```
+
+#### 2.1.2 Atuação prévia
+
+Dos 1647 médicos participantes do programa, 190 (11,5%) já haviam atuado anteriormente no município em que foi destinado, mas não necessariamente no período imediatamente anterior.
+
+```{r}
+
+atuacao_previa <- data |> 
+  count(atuacao_previa_no_municipio, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,1))
+
+atuacao_previa |> 
+  ggplot(aes(x = "", y = percentual, fill = atuacao_previa_no_municipio)) +
+  geom_bar(stat = "identity", widht = 1) + 
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
+            position = position_stack(vjust = 0.5)) +
+  labs(fill = "Atuação prévia no município?") +
+  theme_void()
+```
+
+#### 2.1.3 Localidade em que o médico foi designado
+
+O código abaixo mostra quais as localidades em que os médicos foram destinados, primeiro por região e depois por unidade federativa. Os Estados do nordeste concentram a maior parte dos médicos participantes. Além disso, analise-se as unidades federativas em que os médicos estão exercendo a profissão após o período de 4,5 anos.
+
+```{r}
+
+data <- data |>  
+  mutate(regiao_destino = case_when(
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro"))
+
+regiao_destino <- data |> 
+  count(regiao_destino, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100.0))
+
+regiao_destino |> 
+  ggplot(aes(x = fct_reorder(regiao_destino, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Região de destino",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+```{r}
+
+uf_destino <- data |> 
+  count(uf_destino, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2))
+
+uf_destino |> 
+  ggplot(aes(x = fct_reorder(uf_destino, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Estado de destino",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+```{r}
+uf_final <- data |> 
+  count(uf_final, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2))
+
+uf_final |> 
+  ggplot(aes(x = fct_reorder(uf_final, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Estado de destino",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+#### 2.1.4 Renovação
+
+A variável renovação indica indica os médicos que solicitaram prorrogação da permanência no programa por mais um ano, totalizando 4 anos.
+
+```{r}
+renovacao <- data |> 
+  count(Prorrogado, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100))
+
+renovacao |> 
+  ggplot(aes(x = "", y = percentual, fill = Prorrogado)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
+            position = position_stack(vjust = 0.5)) +
+  theme_void()
+```
+
+#### 2.1.5 Churn
+
+A variável churn como descrito anteriormente, indica quantos profissionais permaneceram nas cidades em que foram destinados e quantos migraram após um período de 4,5 anos. Observa-se também um balanceamento por churn, com 51% de retenção.
+
+```{r}
+churn <- data |> 
+  count(churn, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100))
+
+churn |> 
+  ggplot(aes(x = "", y = percentual, fill = churn)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")),
+            position = position_stack(vjust = 0.5)) +
+  theme_void()
+```
+
+#### 2.1.6 Anos de atuação no município antes do programa
+
+Dos 190 médicos que já haviam atuado no município de destino, a mediana de atuação foi de 1,75 anos.
+
+```{r}
+
+descritiva_anos_atuacao <- data |> 
+  filter(atuacao_previa_no_municipio == "Sim") |> 
+  summarise(
+    Mínimo = min(anos_atuacao_mesmo_municipio),
+    Q1 = quantile(anos_atuacao_mesmo_municipio, 0.25, na.rm = TRUE),
+    Mediana = median(anos_atuacao_mesmo_municipio, 0.5, na.rm = TRUE),
+    Q3 = quantile(anos_atuacao_mesmo_municipio, 0.75, na.rm = TRUE),
+    Máximo = max(anos_atuacao_mesmo_municipio)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_anos_atuacao <- data |> 
+  filter(anos_atuacao_mesmo_municipio > descritiva_anos_atuacao$Limite_superior)
+
+data |> 
+  filter(atuacao_previa_no_municipio == "Sim") |> 
+  ggplot(aes(x = anos_atuacao_mesmo_municipio)) + 
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  geom_boxplot(
+    aes(y = 0.35),
+    width = 0.03,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  geom_vline(xintercept = descritiva_anos_atuacao$Mediana, linetype = "dashed", color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Anos de atuação prévia no município", 
+    y = "Densidade"
+  ) +
+    annotate("text", 
+           x = descritiva_anos_atuacao$Mediana, 
+           y = 0.015,
+           label = descritiva_anos_atuacao$Mediana, 
+           color = "blue", 
+           angle = 90, 
+           vjust = -0.5, 
+           size = 3.5) +
+  theme_minimal()
+```
+
+#### 2.1.7 Idade
+
+A variável idade é analisada na competência em que o médico ingressa no programa. Os resultados mostram que a idade variou entre 22 e 79 anos, no entanto, a mediana foi de 32,4 anos.
+
+```{r}
+descritiva_idade <- data |>
+  summarise(
+    Mínimo = min(idade_em_anos),
+    Q1 =  quantile(idade_em_anos, 0.25, na.rm = TRUE),
+    Mediana = median(idade_em_anos),
+    Q3 = quantile(idade_em_anos, 0.75, na.rm = TRUE),
+    Máximo = max(idade_em_anos)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_idade <- data |> 
+  filter(idade_em_anos > descritiva_idade$Limite_superior)
+  
+
+data |> 
+  ggplot(aes(x = idade_em_anos)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 7)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),   # Ajusta a posição para colocar no eixo y
+    width = 0.03,   # Ajusta a altura do boxplot
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+    geom_vline(xintercept = descritiva_idade$Mediana, linetype = "dashed", color = "blue") +
+      annotate("text", 
+           x = descritiva_idade$Mediana, 
+           y = 0.015,
+           label = round(descritiva_idade$Mediana,1), 
+           color = "blue", 
+           angle = 90, 
+           vjust = -0.5, 
+           size = 3.5) +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Idade", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.1.7 Anos de formação
+
+Assim como no caso da idade, os anos de formação é calculado considerando a competência de ingresso no programa. Os dados variam de 0 a 53 anos e com uma mediana de 1,7. Este resultado indica que o perfil de médicos ingressantes são de recém-formados.
+
+```{r}
+descritiva_anos_formacao <- data |> 
+  summarise(
+    Mínimo = min(anos_formacao),
+    Q1 = quantile(anos_formacao, 0.25, na.rm = TRUE),
+    Mediana = median(anos_formacao),
+    Q3 = quantile(anos_formacao, 0.75, na.rm = TRUE),
+    Máximo = max(anos_formacao)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_anos_formacao <- data |> 
+  filter(anos_formacao > descritiva_anos_formacao$Limite_superior)
+
+data |> 
+  ggplot(aes(x = anos_formacao)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 7)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.6),
+    width = 0.06,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  geom_vline(xintercept = descritiva_anos_formacao$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = descritiva_anos_formacao$Mediana,
+           y = 0.015, 
+           label = round(descritiva_anos_formacao$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Anos de formação", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+
+
+```
+
+### 2.2 Atributos a nível estabelecimento
+
+A seguir serão analisadas as variáveis que caracterizam o estabelecimento em que o médido participante do programa foi alocado, sendo elas, o tipo de estabelecimento, a equipe e a quantidade de leitos. Ressalta-se que as variáveis relacionadas a equipe estão parametrizadas de acordo com o conceito de Full Time-Equivalent (FTE) considerando como tempo integral o tempo de 40 horas, portando se um estabelecimento tem dois profissionais em que um trabalho 40 horas e o outro 20 horas, é contabilizado 1,5 profissionais.
+
+#### 2.2.1 Tipo de estabelecimento
+
+A ampla maioria dos médicos foram desginados para unidades básicas de saúde, no entanto, todos os estabelecimentos são da atenção primária de saúde.
+
+```{r}
+tipo_estabelecimento <- data |> 
+  count(tp_unid, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2)) |> 
+  mutate(tp_unid = case_when(tp_unid == "01" ~ "POSTO DE SAÚDE",
+                             tp_unid == "02" ~ "UNIDADE BÁSICA DE SAÚDE",
+                             tp_unid == "71" ~ "CENTRO DE APOIO A SAÚDE DA FAMÍLIA",
+                             tp_unid == "72" ~ "UNIDADE DE ATENÇÃO A SAÚDE INDIGENA",
+                             TRUE ~ tp_unid))
+
+tipo_estabelecimento |> 
+  ggplot(aes(x = fct_reorder(tp_unid, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.5))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Tipo de estabelecimento",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+#### 2.2.2 Agentes comunitários de saúde
+
+A quantidade de agentes comunitários saúde nos estabelecimentos que receberam médicos do programa variou entre 0 e 61, com uma mediana de 7 ACS's.
+
+```{r}
+#*Há presença de um valor ausente*
+
+descritiva_acs <- data |> 
+  summarise(
+    Mínimo = min(agente_saude, na.rm = TRUE),
+    Q1 = quantile(agente_saude, 0.25, na.rm =TRUE),
+    Mediana = median(agente_saude, na.rm = TRUE),
+    Q3 = quantile(agente_saude, 0.75, na.rm = TRUE),
+    Máximo = max(agente_saude, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_acs <- data |> 
+  filter(agente_saude > descritiva_acs$Limite_superior)
+
+data |> 
+  ggplot(aes(x = agente_saude)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.45),
+    width = 0.06,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+    geom_vline(xintercept = descritiva_acs$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = descritiva_acs$Mediana,
+           y = 0.015, 
+           label = round(descritiva_acs$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Agentes Comunitários de Saúde", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.3 Cirurgiões-dentistas
+
+A quantidade de cirurgiões-dentistas nos estabelecimentos que receberam médicos do programa variou entre 0 e 5,9 dentistas, com uma mediana de 1 dentista.
+
+```{r}
+descritiva_dentistas <- data |> 
+  summarise(
+    Mínimo = min(dentista, na.rm = TRUE),
+    Q1 = quantile(dentista, 0.25, na.rm =TRUE),
+    Mediana = median(dentista, na.rm = TRUE),
+    Q3 = quantile(dentista, 0.75, na.rm = TRUE),
+    Máximo = max(dentista, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_dentistas <- data |> 
+  filter(dentista > descritiva_dentistas$Limite_superior | dentista < descritiva_dentistas$Limite_inferior)
+
+data |> 
+  ggplot(aes(x = dentista)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 4)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.75),
+    width = 0.09,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+      geom_vline(xintercept = descritiva_dentistas$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = descritiva_dentistas$Mediana,
+           y = 0.015, 
+           label = descritiva_dentistas$Mediana,
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Cirurgiões-Dentistas", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.4 Enfermeiros
+
+A quantidade de enfermeiros nos estabelecimentos que receberam médicos do programa variou entre 0 e 20,1, com uma mediana de 1 enfereiro.
+
+```{r}
+descritiva_enfermeiros <- data |> 
+  summarise(
+    Mínimo = min(enfermeiro, na.rm = TRUE),
+    Q1 = quantile(enfermeiro, 0.25, na.rm =TRUE),
+    Mediana = median(enfermeiro, na.rm = TRUE),
+    Q3 = quantile(enfermeiro, 0.75, na.rm = TRUE),
+    Máximo = max(enfermeiro, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_enfermeiros <- data |> 
+  filter(enfermeiro > descritiva_enfermeiros$Limite_superior)
+
+data |> 
+  ggplot(aes(x = enfermeiro)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 11)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.65),
+    width = 0.09,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+        geom_vline(xintercept = descritiva_enfermeiros$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_enfermeiros$Mediana,
+           y = 0.015, 
+           label = round(descritiva_enfermeiros$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Enfermeiros", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.5 Técnicos e Auxiliares de enfermagem
+
+A quantidade de ténicos e auxiliares de enfermagem nos estabelecimentos que receberam médicos do programa variou entre 0 e 44,8, com uma mediana de 2,16.
+
+```{r}
+descritiva_tec_aux_enf <- data |> 
+  summarise(
+    Mínimo = min(tec_aux_enf, na.rm = TRUE),
+    Q1 = quantile(tec_aux_enf, 0.25, na.rm =TRUE),
+    Mediana = median(tec_aux_enf, na.rm = TRUE),
+    Q3 = quantile(tec_aux_enf, 0.75, na.rm = TRUE),
+    Máximo = max(tec_aux_enf, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_tec_aux_enf <- data |> 
+  filter(tec_aux_enf > descritiva_tec_aux_enf$Limite_superior)
+
+data |> 
+  ggplot(aes(x = tec_aux_enf)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.65),
+    width = 0.09,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+          geom_vline(xintercept = descritiva_tec_aux_enf$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_tec_aux_enf$Mediana,
+           y = 0.015, 
+           label = round(descritiva_tec_aux_enf$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Técnico e Auxiliar de Enfermagem", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.2.7 Leitos instalação física urgência
+
+O número de leitos de instalação física de urgência nos estabelecimentos que receberam médicos do programa variou entre 0 a 25, com uma mediana de 6 leitos.
+
+```{r}
+descritiva_leitos_instalacao_fisica_urgencia <- data |> 
+  summarise(
+    Mínimo = min(leitos_instalacao_fisica_urgencia, na.rm = TRUE),
+    Q1 = quantile(leitos_hospitalares_cirurgico_clinico_complementar, 0.25, na.rm =TRUE),
+    Mediana = median(leitos_instalacao_fisica_urgencia, na.rm = TRUE),
+    Q3 = quantile(leitos_instalacao_fisica_urgencia, 0.75, na.rm = TRUE),
+    Máximo = max(leitos_instalacao_fisica_urgencia, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_leitos <- data |> 
+  filter(leitos_instalacao_fisica_urgencia > descritiva_leitos_instalacao_fisica_urgencia$Limite_superior)
+
+data |> 
+  ggplot(aes(x = leitos_instalacao_fisica_urgencia)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 10, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.75),
+    width = 0.09,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+            geom_vline(xintercept = descritiva_leitos_instalacao_fisica_urgencia$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_leitos_instalacao_fisica_urgencia$Mediana,
+           y = 0.015, 
+           label = round(descritiva_leitos_instalacao_fisica_urgencia$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma de leitos instalacao fisica urgencia", 
+    x = "Leitos instalacao fisica urgencia", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+
+
+```
+
+### 2.3 Atributos a nível município
+
+A seguir, as variáveis que caracterizam os municípios, tais como indicadores econômicos, de educaçao, saúde, infraestrutura e segurança pública.
+
+#### 2.3.1 Porte da cidade
+
+O porte dos município é classificado de acordo com sua população:
+
+Pequeno Porte I: Até 20.000 habitantes.\
+Pequeno Porte II: Entre 20.000 e 50.000 habitantes.\
+Médio Porte: Entre 50.000 e 100.000 habitantes.\
+Grande Porte: Entre 100.000 e 900.000 habitantes.\
+Metrópole: Mais de 900.000 habitantes.
+
+Pelo resultado abaixo, observa-se que a ampla maioria (64%) dos médicos foram designados para municípos de até 50.000 habitantes. Ressalta-se, em conformidade do que o edital prevê, há previsão para destinação de médicos para cidades maiores que tenham dificuldades de financiamento público.
+
+```{r}
+porte <- data |> 
+  count(porte, name = "total") |> 
+  mutate(percentual = round(total / sum(total) * 100,2)) |> 
+  mutate(porte = case_when(porte == "PP-I" ~ "Pequeno porte 1",
+                           porte == "PP-II" ~ "Pequeno porte 2",
+                           porte == "MP" ~ "Médio porte",
+                           porte == "GP" ~ "Grande porte",
+                           TRUE ~ porte))
+
+porte |> 
+  ggplot(aes(x = fct_reorder(porte, percentual, .desc = FALSE), y = percentual)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.25))) +
+  geom_text(aes(label = paste0(total," (",percentual, "%)")), hjust = -0.2) + 
+  labs(title = "Porte do município",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+```
+
+#### 2.3.2 Produto Interno Bruto (PIB) per capita (R\$)
+
+O PIB per capita dos municípios participantes do programa variou entre R\$ 4.475 e R\$ 353.505, com uma mediana de R\$ 13.861.
+
+```{r}
+descritiva_pib_percapita <- data |> 
+  summarise(
+    Mínimo = min(pib_percapita, na.rm = TRUE),
+    Q1 = quantile(pib_percapita, 0.25, na.rm =TRUE),
+    Mediana = median(pib_percapita, na.rm = TRUE),
+    Q3 = quantile(pib_percapita, 0.75, na.rm = TRUE),
+    Máximo = max(pib_percapita, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_pib_percapita <- data |> 
+  filter(pib_percapita > descritiva_pib_percapita$Limite_superior)
+
+data |> 
+  ggplot(aes(x = pib_percapita)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 20, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.4),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+  geom_vline(xintercept = descritiva_pib_percapita$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_pib_percapita$Mediana,
+           y = 0.015, 
+           label = round(descritiva_pib_percapita$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "PIB per capita", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.3 Taxa de ocupação da população (%)
+
+A taxa de população ocupada dos municípios participantes variou de 1,4% a 92,9%, com uma mediana de 11,18%.
+
+```{r}
+descritiva_tx_pop_ocupada <- data |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100) |> 
+  summarise(
+    Mínimo = min(tx_pop_ocupada, na.rm = TRUE),
+    Q1 = quantile(tx_pop_ocupada, 0.25, na.rm =TRUE),
+    Mediana = median(tx_pop_ocupada, na.rm = TRUE),
+    Q3 = quantile(tx_pop_ocupada, 0.75, na.rm = TRUE),
+    Máximo = max(tx_pop_ocupada, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_tx_ocupacao <- data |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100) |> 
+  filter(tx_pop_ocupada > descritiva_tx_pop_ocupada$Limite_superior)
+
+
+data |> 
+  mutate(tx_pop_ocupada = tx_pop_ocupada*100) |> 
+  ggplot(aes(x = tx_pop_ocupada)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+    geom_vline(xintercept = descritiva_tx_pop_ocupada$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_tx_pop_ocupada$Mediana,
+           y = 0.015, 
+           label = round(descritiva_tx_pop_ocupada$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Taxa de população ocupada", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.4 Taxa da população que possui plano de saúde (%)
+
+O percentual da população que detêm plano de saúde dos municípios participantes do programa variou de 0,13% a 90,3%, com uma mediana de 5,33%.
+
+```{r}
+descritiva_cobertura_plano_saude <- data |> 
+  summarise(
+    Mínimo = min(cobertura_saude, na.rm = TRUE),
+    Q1 = quantile(cobertura_saude, 0.25, na.rm =TRUE),
+    Mediana = median(cobertura_saude, na.rm = TRUE),
+    Q3 = quantile(cobertura_saude, 0.75, na.rm = TRUE),
+    Máximo = max(cobertura_saude, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_cobertura_plano_saude <- data |> 
+  filter(cobertura_saude > descritiva_cobertura_plano_saude$Limite_superior)
+
+data |> 
+  ggplot(aes(x = cobertura_saude)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 30, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+      geom_vline(xintercept = descritiva_cobertura_plano_saude$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_cobertura_plano_saude$Mediana,
+           y = 0.015, 
+           label = round(descritiva_cobertura_plano_saude$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma da taxa de cobertura de plano de saúde", 
+    x = "Taxa de cobertura de plano de saúde", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.5 Quantidade de vagas de medicina em faculdades no município
+
+Dos 1.058 municípios que receberam médicos do programa, 362 haviam vagas em cursos de medicina, sendo que o maior número foi de 22 vagas.
+
+```{r}
+descritiva_vagas_medicina <- data |> 
+  distinct(ibge_aloc, vagas_medicina_milhab) |> 
+  summarise(
+    Mínimo = min(vagas_medicina_milhab, na.rm = TRUE),
+    Q1 = quantile(vagas_medicina_milhab, 0.25, na.rm =TRUE),
+    Mediana = median(vagas_medicina_milhab, na.rm = TRUE),
+    Q3 = quantile(vagas_medicina_milhab, 0.75, na.rm = TRUE),
+    Máximo = max(vagas_medicina_milhab, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_vagas_medicina <- data |> 
+  filter(vagas_medicina_milhab > descritiva_vagas_medicina$Limite_superior)
+
+data |> 
+  ggplot(aes(x = vagas_medicina_milhab)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.9),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+        geom_vline(xintercept = descritiva_vagas_medicina$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_vagas_medicina$Mediana,
+           y = 0.015, 
+           label = round(descritiva_vagas_medicina$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histogramas", 
+    x = "Vagas de medicina por mil habitantes", 
+    y = "Percentual"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.6 Orçamento destinado a saúde per capita (R\$)
+
+Os gastos públicos per capita com saúde dos municípios participantes do programa variou de R\$ 202 a R\$ 5.561, com uma mediana de R\$ 605.
+
+```{r}
+descritiva_orcamento_saude <- data |> 
+  summarise(
+    Mínimo = min(orcamento_saude, na.rm = TRUE),
+    Q1 = quantile(orcamento_saude, 0.25, na.rm =TRUE),
+    Mediana = median(orcamento_saude, na.rm = TRUE),
+    Q3 = quantile(orcamento_saude, 0.75, na.rm = TRUE),
+    Máximo = max(orcamento_saude, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_orcamento_saude <- data |> 
+  filter(orcamento_saude > descritiva_orcamento_saude$Limite_superior)
+
+data |> 
+  ggplot(aes(x = orcamento_saude)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 20, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.6),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+        geom_vline(xintercept = descritiva_orcamento_saude$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_orcamento_saude$Mediana,
+           y = 0.015, 
+           label = round(descritiva_orcamento_saude$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Orçamento de saúde per capita (R$)", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.7 População total atendida com esgotamento sanitário (%)
+
+O percentual da população que possui esgoto sanitário dos municípios participantes variou de 0% a 46,6%, com uma mediana de 6,7%.
+
+```{r}
+descritiva_esgoto <- data |> 
+  summarise(
+    Mínimo = min(esgotamento_sanitario, na.rm = TRUE),
+    Q1 = quantile(esgotamento_sanitario, 0.25, na.rm =TRUE),
+    Mediana = median(esgotamento_sanitario, na.rm = TRUE),
+    Q3 = quantile(esgotamento_sanitario, 0.75, na.rm = TRUE),
+    Máximo = max(esgotamento_sanitario, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)                                                                                                                                      
+data |> 
+  ggplot(aes(x = esgotamento_sanitario)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+          geom_vline(xintercept = descritiva_esgoto$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_esgoto$Mediana,
+           y = 0.015, 
+           label = round(descritiva_esgoto$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Cobertura de esgotamento sanitário (%)", 
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.8 Número de mortes por homicídio por 100 mil habitantes
+
+O número de mortes por homícidio por 100 mil habitantes dos municípios participantes do programa foi de 0 a 188, com uma mediana de 23,5.
+
+```{r}
+descritiva_homicidio <- data |> 
+  summarise(
+    Mínimo = min(taxa_homicidio, na.rm = TRUE),
+    Q1 = quantile(taxa_homicidio, 0.25, na.rm =TRUE),
+    Mediana = median(taxa_homicidio, na.rm = TRUE),
+    Q3 = quantile(taxa_homicidio, 0.75, na.rm = TRUE),
+    Máximo = max(taxa_homicidio, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_homicidio <- data |> 
+  filter(taxa_homicidio > descritiva_homicidio$Limite_superior)
+
+data |> 
+  ggplot(aes(x = taxa_homicidio)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+            geom_vline(xintercept = descritiva_homicidio$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_homicidio$Mediana,
+           y = 0.015, 
+           label = round(descritiva_homicidio$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Homicídios por 100 mil habitantes",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.11 Nota do IDEB - Rede municipal - Anos Iniciais
+
+A nota IDEB dos anos inicias dos municípios participantes do programa variou de 3,2 a 9,4, com uma mediana de 5,3.
+
+```{r}
+
+descritiva_ideb_inicial <- data |> 
+  summarise(
+    Mínimo = min(ideb_anosiniciais, na.rm = TRUE),
+    Q1 = quantile(ideb_anosiniciais, 0.25, na.rm =TRUE),
+    Mediana = median(ideb_anosiniciais, na.rm = TRUE),
+    Q3 = quantile(ideb_anosiniciais, 0.75, na.rm = TRUE),
+    Máximo = max(ideb_anosiniciais, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_ideb_inicial <- data |> 
+  filter(ideb_anosiniciais > descritiva_ideb_inicial$Limite_superior)
+
+data |> 
+  ggplot(aes(x = ideb_anosiniciais)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),
+    width = 0.05,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                geom_vline(xintercept = descritiva_ideb_inicial$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_ideb_inicial$Mediana,
+           y = 0.015, 
+           label = round(descritiva_ideb_inicial$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Nota do IDEB - Anos Iniciais",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.12 Nota do IDEB - Rede municipal - Anos Finais
+
+A nota IDEB dos anos finais dos municípios participantes do programa variou de 2,2 a 7,8, com uma mediana de 4,3.
+
+```{r}
+data |> 
+  filter(is.na(ideb_anosfinais)) |> 
+  count()
+
+descritiva_ideb_final <- data |> 
+  summarise(
+    Mínimo = min(ideb_anosfinais, na.rm = TRUE),
+    Q1 = quantile(ideb_anosfinais, 0.25, na.rm =TRUE),
+    Mediana = median(ideb_anosfinais, na.rm = TRUE),
+    Q3 = quantile(ideb_anosfinais, 0.75, na.rm = TRUE),
+    Máximo = max(ideb_anosfinais, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_ideb_final <- data |> 
+  filter(ideb_anosfinais > descritiva_ideb_final$Limite_superior)
+
+data |> 
+  ggplot(aes(x = ideb_anosfinais)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),
+    width = 0.05,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                  geom_vline(xintercept = descritiva_ideb_final$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_ideb_final$Mediana,
+           y = 0.015, 
+           label = round(descritiva_ideb_final$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Nota do IDEB - Anos Finais",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.13 Valor do investimento público em infraestrutura per capita (R\$)
+
+Os gastos públicos per capita com investimento em infreaestrutura variou de R\$1.686 a R\$27.148, com uma mediana de R\$ 2.702.
+
+```{r}
+descritiva_investimento_infraestrutura <- data |> 
+  summarise(
+    Mínimo = min(investimento_infraestrutura, na.rm = TRUE),
+    Q1 = quantile(investimento_infraestrutura, 0.25, na.rm =TRUE),
+    Mediana = median(investimento_infraestrutura, na.rm = TRUE),
+    Q3 = quantile(investimento_infraestrutura, 0.75, na.rm = TRUE),
+    Máximo = max(investimento_infraestrutura, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_investimento_infraestrutura <- data |> 
+  filter(investimento_infraestrutura > descritiva_investimento_infraestrutura$Limite_superior)
+
+data |> 
+  ggplot(aes(x = investimento_infraestrutura)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.5),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                    geom_vline(xintercept = descritiva_investimento_infraestrutura$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_investimento_infraestrutura$Mediana,
+           y = 0.015, 
+           label = round(descritiva_investimento_infraestrutura$Mediana,0),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Investimento em infraestrutura per capita (R$)",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.14 Número de equipamentos esportivos públicos por 100 mil habitantes
+
+O número de equipamentos esportivos por 100 mil habitantes dos municípios participantes do programa variou de 0 a 197, com uma mediana de 4,8.
+
+```{r}
+
+descritiva_equipamentos_esportivos <- data |> 
+  summarise(
+    Mínimo = min(equipamentos_esportivos, na.rm = TRUE),
+    Q1 = quantile(equipamentos_esportivos, 0.25, na.rm =TRUE),
+    Mediana = median(equipamentos_esportivos, na.rm = TRUE),
+    Q3 = quantile(equipamentos_esportivos, 0.75, na.rm = TRUE),
+    Máximo = max(equipamentos_esportivos, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_equipamentos_esportivos <- data |> 
+  filter(equipamentos_esportivos > descritiva_equipamentos_esportivos$Limite_superior)
+
+data |> 
+  ggplot(aes(x = equipamentos_esportivos)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 20, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 15)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.7),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                      geom_vline(xintercept = descritiva_equipamentos_esportivos$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_equipamentos_esportivos$Mediana,
+           y = 0.015, 
+           label = round(descritiva_equipamentos_esportivos$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Equipamentos esportivos públicos por 100 mil habitantes",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.15 Número de espaços culturais públicos e privados por 100 mil habitantes
+
+O número de espaços culturais por 100 mil habitantes dos municípios participantes do programa variou de 0 a 160, com uma mediana de 6,1.
+
+```{r}
+descritiva_equipamentos_culturais <- data |> 
+  summarise(
+    Mínimo = min(equpamentos_culturais, na.rm = TRUE),
+    Q1 = quantile(equpamentos_culturais, 0.25, na.rm =TRUE),
+    Mediana = median(equpamentos_culturais, na.rm = TRUE),
+    Q3 = quantile(equpamentos_culturais, 0.75, na.rm = TRUE),
+    Máximo = max(equpamentos_culturais, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_equipamentos_culturais <- data |> 
+  filter(equpamentos_culturais > descritiva_equipamentos_culturais$Limite_superior)
+
+data |> 
+  ggplot(aes(x = equpamentos_culturais)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 15, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 15)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.7),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                        geom_vline(xintercept = descritiva_equipamentos_culturais$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_equipamentos_culturais$Mediana,
+           y = 0.015, 
+           label = round(descritiva_equipamentos_culturais$Mediana,1),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Espaços culturais públicos e privados por 100 mil habitantes",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+#### 2.3.16 Distância da Capital
+
+A distância até a capital dos municípios participantes do programa variou de 1km a 1.708km, com uma mediana de 250km.
+
+```{r}
+descritiva_distancia_capital <- data |> 
+  summarise(
+    Mínimo = min(distancia_capital, na.rm = TRUE),
+    Q1 = quantile(distancia_capital, 0.25, na.rm =TRUE),
+    Mediana = median(distancia_capital, na.rm = TRUE),
+    Q3 = quantile(distancia_capital, 0.75, na.rm = TRUE),
+    Máximo = max(distancia_capital, na.rm = TRUE)
+  ) |> 
+  mutate(
+    IQR = Q3 - Q1,
+    Limite_inferior = Q1 - 1.5 * IQR,
+    Limite_superior = Q3 + 1.5 * IQR
+  ) |> 
+  select(-IQR) |> 
+  relocate(Limite_inferior, .before = Mínimo)
+
+outlier_distancia_capital <- data |> 
+  filter(distancia_capital > descritiva_distancia_capital$Limite_superior)
+
+data |> 
+  ggplot(aes(x = distancia_capital)) + 
+  # Histograma
+  geom_histogram(aes(y = ..count../sum(..count..)), 
+                 bins = 20, 
+                 fill = "lightblue", 
+                 color = "white", 
+                 alpha = 0.6) +
+  scale_x_continuous(breaks = pretty_breaks(n = 15)) +
+  # Boxplot
+  geom_boxplot(
+    aes(y = 0.3),
+    width = 0.07,
+    fill = "orange",
+    outlier.color = "red"
+  ) +
+                      geom_vline(xintercept = descritiva_distancia_capital$Mediana, linetype = "dashed", color = "blue") +
+  annotate("text",
+           x = 	descritiva_distancia_capital$Mediana,
+           y = 0.015, 
+           label = round(descritiva_distancia_capital$Mediana,2),
+           angle = 90,
+           vjust = -0.5,
+           size = 3.5,
+           color = "blue") +
+  labs(
+    title = "Boxplot e Histograma", 
+    x = "Distância da capital (km)",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+```
+
+## 3. Correlações entre variáveis
+
+Nessa seção, cruzaremos as variáveis para saber o grau de correlação entre elas. Como o churn é a variável de interesse, ela será o principal objeto de análise. E como feito na seção anterior, a estruturação é feita respeitando os níveis de atributos.
+
+Também serão aplicados os seguintes testes estatísticos: Teste de Fisher, Teste de Shapiro-Wilk e Teste de Mann-Whitney.
+
+O **Teste de Fisher** é utilizado para determinar se há uma associação significativa entre duas variáveis categóricas, ou em outras palavras, se há diferença estatística entre dois grupos. Por exemplo, ao constatarmos que não há diferença estatística na retenção de profissionais por sexo, dizemos que as variáveis sexo e retenção são independentes. Ele é especialmente útil na análise de variáveis categóricas com amostras pequenas. A hipótese nula afirma que a razão de chances de ocorrência de um evento (ods ratio = 1) não difere entre os grupos, indicando independência entre as variáveis. Por outro lado, a hipótese alternativa (ods rario != 1) sugere uma associação (dependência) entre as variáveis. Portanto, quando o valor-p é significativo (p-value\<0,05), rejeitamos a hipótese nula, concluindo que há associação entre as variáveis. Caso contrário, não rejeitamos a hipótese nula, indicando que não há evidência de associação significativa.
+
+O **Teste de Shapiro-Wilk**, aplicável no caso de variáveis quantitativas, é utilizado para verificar se o padrão de distribuição de probabilidade segue a normalidade. Isso é importante, porque muitas análises como a ANOVA, test t e regressões lineares pressupões normalidade dos dados. A hipótese nula é de que os dados seguem distribuição normal, e alternativa de que não segue. Portanto, quando p-value\<0.05, rejeita a hipótese nula indicando não normalidade dos dados.
+
+Por último, o **Teste de Mann-Whitney** (ou Teste de Wilcocox) é adequado para variáveis quantitativas que não seguem distribuição normal. Ao comparar duas amostras independentes, verifica se as distribuições de um parâmetro são iguais ou, alternativamente, se uma tende a ter valores maiores que a outra. O p-valor pequeno (p \< 0,05) leva a rejeição da hipótese nula, indicando que as distribuição são significativamente diferentes. É um teste indicado também para presença de outlier, que é o caso da maioria das variáveis analisadas, por operar com ranking dos dados em vez dos valores absolutos.
+
+### 3.1 Atributos a nível indivíduo
+
+O código abaixo mostra o percentual de médicos que permaneceram nas cidades em que foram designados desagregado por sexo, isto é, a retenção. No entanto, a falta de significância estatística no teste fisher, indica que não há associação entre as variáveis sexo e churn.
+
+```{r}
+corr_sexo_churn <- data %>% 
+  group_by(sexo, churn) %>% 
+  count() %>% 
+  pivot_wider(names_from = churn, values_from = n) %>% 
+  mutate(retencao  = round(permanece/(migrou + permanece)*100,2)) %>%
+  mutate(sexo = ifelse(sexo == "Female", "Feminino", "Masculino"))
+
+corr_sexo_churn |> 
+  ggplot(aes(x = fct_reorder(sexo, retencao, .desc = TRUE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), vjust = -1) + 
+  labs(title = "Taxa de retenção por sexo",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+
+
+fisher.test(corr_sexo_churn[, c("migrou", "permanece")])
+```
+
+A seguir, é observada a retenção de acordo com profissionais que prorrogaram a permanência no programa conforme edital. A retenção de médicos foi maior entre aqueles que não renovaram a permanência do programa com 71%, em comparação aos que renovaram, que apenas 21% permanceram após 4,5 anos.
+
+```{r}
+
+corr_renovacao_churn <- data |> 
+  group_by(Prorrogado, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = round(permanece / (permanece + migrou)*100,2)) |> mutate(Prorrogado = ifelse(Prorrogado == "SIM", "Prorrogado", "Não prorrogado"))
+
+corr_renovacao_churn |> 
+  ggplot(aes(x = fct_reorder(Prorrogado, retencao, .desc = TRUE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), vjust = -1) + 
+  labs(title = "Taxa de retenção por renovação",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+
+
+fisher.test(corr_renovacao_churn[, c("migrou", "permanece")])
+```
+
+Abaixo, é gerado boxplot da média de vínculos desagregado pelo churn (retenção). É aplicado o teste de distribuição de probalidade Shapiro-Wilk no qual o p valor significativo indica que não segue normalidade. E dado a não normalidade dos dados, é aplicado o teste de Mann-Whitney para comparar duas amostras (migrou e permance), e o p-valor significativo indica diferença estatística entre os dois grupos.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = media_vinculos)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Média de vínculos de pessoas migraram e permanceram",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
+
+shapiro.test(data$media_vinculos)
+
+wilcox.test(media_vinculos ~ churn, data = data, 
+                         alternative = "two.sided")
+```
+
+A seguir é gerado boxplot para idade dos médicos desagregado pelo churn. O teste de Shapiro-Wilk indica não normalidade da distribuição, e o teste Mann-Whitney aponta para diferença estatística entre os dois grupos (migrou e permanece). Observa-se que médicos que permaneceram são mais jovens comparado aos que migraram.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = idade_em_anos)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Idade de pessoas migraram e permanceram",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
+
+shapiro.test(data$idade_em_anos)
+
+wilcox.test(idade_em_anos ~ churn, data = data, 
+                         alternative = "two.sided")
+```
+
+Seguindo a mesma lógica da idade, é gerado boxplot desagregado por churn dos anos de formação ao ingressar no programa. O teste Shapiro-Wilk indica não normalidade, e o Mann-Whitney aponta diferença estatística. Os resultados mostram que os médicos que permaneceram tem menos anos de formação do que os que migraram.
+
+```{r}
+data |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = anos_formacao)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Anos de formação por pessoas migraram e permaneceram",
+       x = NULL,
+       y = "Idade") +
+  theme_minimal()
+
+shapiro.test(data$anos_formacao)
+
+wilcox.test(anos_formacao ~ churn, data = data, 
+                         alternative = "two.sided")
+```
+
+Em consonância com os resultados anteriores, há uma correlação significativa entre a idade e os anos de formação dos médicos participantes que é demonstrado visualmente pelo gráfico de dispersão, e estatísticamente pelo teste de correlação com o método de pearson.
+
+```{r}
+data |> 
+  ggplot(aes(x = idade_em_anos, y = anos_formacao)) +
+  geom_point() +
+  stat_cor(method = "pearson") +
+  labs(title = "Gráfico de dispersão da idade e anos de formação",
+       x = "Idade",
+       y = "Anos de formação") +
+  theme_bw()
+```
+
+### 3.2 Atributos a nível estabelecimento
+
+Na função abaixo, é gerada uma matriz de correlações entre as variáveis de profissionais por estabelecimento, e com o número de leitos. Observa-se que houve significância entre todas as variáveis, entre as maiores, de técnico e auxiliar de enfermagem e enfermeiros considerando profissionais, e número de leitos com enfermeiros.
+
+```{r}
+
+data |> 
+  distinct(agente_saude, dentista, enfermeiro, tec_aux_enf, leitos_instalacao_fisica_urgencia, cnes) |> 
+ggpairs(
+  columns = c("agente_saude", "dentista", "enfermeiro", "tec_aux_enf", "leitos_instalacao_fisica_urgencia"),
+  upper = list(continuous = "cor"),
+  lower = list(continuous = "points")) +
+  theme_minimal()
+```
+
+A seguir é gerado boxplot do número de agentes de saúde por estabelecimento desagregado pelo churn. Os testes Shapiro-Wilk e Wenn-Whitiney indicaram, respectivamente, não normalidade e diferença estatística significativa entre os dois grupos. O número de agentes de saúde nos estabelecimentos onde os médicos migraram é ligeiramente maior em comparação aos estabelecimentos onde os profissionais permaneceram.
+
+```{r}
+data |> 
+  distinct(cnes, agente_saude, churn) |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = agente_saude)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Agentes de Saúde de pessoas por CNES que migraram e permaneceram",
+       x = NULL,
+       y = "Agentes Comunitários de Saúde") +
+  theme_minimal()
+
+distinct_agente_saude <- data |>
+  distinct(agente_saude, churn, cnes)
+
+shapiro.test(distinct_agente_saude$agente_saude)
+
+wilcox.test(agente_saude ~ churn, data = distinct_agente_saude, 
+                         alternative = "two.sided")
+```
+
+Na mesma lógica anterior, dos agentes de saúde, é realizado com técnico e auxiliares de enfermagem. Os testes indicam não normalidade e diferença estatística não significativa, indicando, que o número de profissionais por estabelecimento de profissionais que migraram e permaneceram são iguais.
+
+```{r}
+data |> 
+  distinct(tec_aux_enf, churn, cnes) |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = tec_aux_enf)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Tec. e Aux. de Enfermagem por CNES de pessoas que migraram e permaneceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+
+distinct_tec_aux_enf <- data |> 
+  distinct(tec_aux_enf, churn, cnes)
+
+shapiro.test(distinct_tec_aux_enf$tec_aux_enf)
+
+wilcox.test(tec_aux_enf ~ churn, data = data, alternative = "two.sided")
+```
+
+Os resultados de enfermeiros são semelhantes dos de técnico e auxiliar de enfermagem, não seguem distribuição normal, e não apresenta diferença estatística significativa no comparativo de estabelecimentos com profissionais que migraram ou permaneceram.
+
+```{r}
+data |> 
+  distinct(enfermeiro, churn, cnes) |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = enfermeiro)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Enfermeiros por CNES de pessoas que migraram e permaneceram",
+       x = NULL,
+       y = "Enfermeiros") +
+  theme_minimal()
+
+distinct_enfermeiros <- data |> 
+  distinct(enfermeiro, churn, cnes)
+
+shapiro.test(distinct_enfermeiros$enfermeiro)
+
+wilcox.test(enfermeiro ~ churn, data = distinct_enfermeiros, alternative = "two.sided")
+```
+
+Assim como técnicos e auxiliares de enfermagem e enfermeiros, o número de dentistas não segue distribuição normal e não apresenta diferença significativa entre estabelecimentos que tiveram profissionais que permaneceram e migraram.
+
+```{r}
+data |> 
+  distinct(dentista, churn, cnes) |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = dentista)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Cirurgiões-dentistas por CNES de pessoas que migraram e permaneceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+
+distinct_dentista <- data |> 
+  distinct(dentista, churn, cnes)
+
+shapiro.test(distinct_dentista$dentista)
+
+wilcox.test(dentista ~ churn, data = distinct_dentista, alternative = "two.sided")
+```
+
+A seguir, boxplot de número de leitos desagregado pelo churn. O teste Shapiro-Wilk indica que a variável não segue distribuição normal, e o teste Wenn-Whetney aponta que não há diferença significativa. O resultado mostra que o número de leitos por estabelecimento de profissionais que permaneceram e migraram são iguais.
+
+```{r}
+data |> 
+  distinct(leitos_instalacao_fisica_urgencia, churn, cnes) |> 
+    mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |> 
+  ggplot(aes(x = churn, y = leitos_instalacao_fisica_urgencia)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Leitos por CNES de pessoas que migaram e permanceram",
+       x = NULL,
+       y = "Técnicos e Auxiliares de Enfermagem") +
+  theme_minimal()
+
+distinct_leitos <- data |> 
+  distinct(leitos_instalacao_fisica_urgencia, churn, cnes)
+
+shapiro.test(distinct_leitos$leitos_instalacao_fisica_urgencia)
+
+wilcox.test(leitos_instalacao_fisica_urgencia ~ churn, data = distinct_leitos, alternative = "two.sided")
+```
+
+### 3.3 Atributos a nível município
+
+Abaixo é calculado a retenção de profissionais desagregado por região do país. O teste de fisher indica diferença estatística entre as localidades, muito destacada pela região norte que apresenta um desvio expressivo em relação as demais.
+
+```{r}
+corr_regiao_churn <- data |> 
+  group_by(regiao_destino, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = round(permanece / (migrou + permanece) * 100,0))
+
+corr_regiao_churn |> 
+  ggplot(aes(x = fct_reorder(regiao_destino, retencao, .desc = FALSE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), hjust = -0.2) + 
+  labs(title = "Taxa de retenção por região",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+
+fisher.test(corr_regiao_churn[, c("migrou", "permanece")], simulate.p.value = TRUE)
+```
+
+Na mesma lógica da retenção por região, abaixo é calculado por unidade federativa. Os resultados mostram Tocantins e Sergipe como melhores resultados de permanência de médicos nas cidades de destino, no entanto, os resultados devem ser olhados com ceticismo já que são estados que receberam poucos médicos, e em especial, Tocantins que recebeu apenas 15 profissionais.
+
+```{r}
+corr_uf_churn <- data |> 
+  group_by(uf_destino, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(permanece = ifelse(is.na(permanece), 0, permanece)) |> 
+  mutate(retencao = round(permanece / (permanece + migrou) * 100,2))
+
+corr_uf_churn |> 
+  ggplot(aes(x = fct_reorder(uf_destino, retencao, .desc = FALSE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), hjust = -0.2) + 
+  labs(title = "Taxa de retenção por UF",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+
+fisher.test(corr_uf_churn[, c("migrou", "permanece")], simulate.p.value = TRUE)
+```
+
+Ressaltando os critérios de classificação de porte dos municípios:
+
+Pequeno Porte I: Até 20.000 habitantes.\
+Pequeno Porte II: Entre 20.000 e 50.000 habitantes.\
+Médio Porte: Entre 50.000 e 100.000 habitantes.\
+Grande Porte: Entre 100.000 e 900.000 habitantes.\
+Metrópole: Mais de 900.000 habitantes.
+
+A seguir é calculada a retenção desagredada por porte da cidade. A significância estatística do teste de fisher indica que há associação entre o porte e o churn.
+
+```{r}
+corr_porte_churn <- data |> 
+  group_by(porte, churn) |> 
+  count() |> 
+  pivot_wider(names_from = churn, values_from = n) |> 
+  mutate(retencao = round(permanece / (migrou + permanece) * 100,0)) |> 
+    mutate(porte = case_when(porte == "PP-I" ~ "Pequeno porte 1",
+                           porte == "PP-II" ~ "Pequeno porte 2",
+                           porte == "MP" ~ "Médio porte",
+                           porte == "GP" ~ "Grande porte",
+                           TRUE ~ porte))
+
+
+corr_porte_churn |> 
+  ggplot(aes(x = fct_reorder(porte, retencao, .desc = FALSE), y = retencao)) + 
+  geom_col(fill = "lightblue",
+           alpha = 0.9) + 
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  geom_text(aes(label = paste0(retencao, "%")), hjust = -0.2) + 
+  labs(title = "Taxa de retenção por porte do município",
+       x = NULL, 
+       y = NULL) + 
+  theme_minimal()
+
+fisher.test(corr_porte_churn[, c("migrou", "permanece")], simulate.p.value = TRUE)
+```
+
+Abaixo, o boxplot do PIB per capita desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença não significativa entre os médicos que permaneceram e que migraram. Os resultados mostram que o PIB per capita da cidade não é um determinante para retenção dos médicos, no entanto, deve ser analisado com o ceticismo por não se tratar de uma variável aleatória, dado que os profissionais que selecionam as cidades que desejam ir, tratando dessa forma de um viés.
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = pib_percapita)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: PIB per capita por pessoas que migraram e permaceram",
+       x = NULL,
+       y = "PIB per capita (R$)") +
+  theme_minimal()
+
+distinct_pib <- data |> 
+  distinct(ibge_aloc, pib_percapita, churn)
+
+shapiro.test(distinct_pib$pib_percapita)
+
+wilcox.test(pib_percapita ~ churn, data = distinct_pib, alternative = "two.sided")
+```
+
+A seguir, o boxplot da taxa de ocupação do municipio desagregado por churn. O teste Shapiro-Walk indica não normalidade na distribruição de probabilidade, e o Wenn-Whitney aponta que não há diferença estatística significativa entre os profissionais que migraram e permanaceram.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = tx_pop_ocupada*100)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: taxa de ocupação por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Taxa de ocupação (%)") +
+  theme_minimal()
+
+shapiro.test(data$tx_pop_ocupada)
+
+wilcox.test(tx_pop_ocupada ~ churn, data = data, alternative = "two.sided")
+```
+
+No código abaixo, o boxplot do número de vagas em curso de medicina por município desagregado por churn. Os testes indicam não normalidade da distribuição de probabilidade e diferença estatística significativa entre o número de vagas em municípios em que os médicos permaneceram e migraram.
+
+```{r}
+data |> 
+  ggplot(aes(x = churn, y = vagas_medicina_milhab)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Vagas de medicina por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Vagas de medicina") +
+  theme_minimal()
+
+shapiro.test(data$vagas_medicina_milhab)
+
+wilcox.test(vagas_medicina_milhab ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot dos gastos públicos com saúde desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
+
+```{r}
+
+data |> 
+  ggplot(aes(x = churn, y = orcamento_saude)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: orçamento de saúde per capita por pessoas que migraram ou permanceram",
+       x = "Renovação",
+       y = "Orçamendo de saúde per capita") +
+  theme_minimal()
+
+shapiro.test(data$orcamento_saude)
+
+wilcox.test(orcamento_saude ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot da cobertura populacional com esgoto sanitário desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = esgotamento_sanitario)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: esgotamento sanitário por pessoas que migraram e permanceram",
+       x = NULL,
+       y = "População com esgoto sanitário (%)") +
+  theme_minimal()
+
+shapiro.test(data$esgotamento_sanitario)
+
+wilcox.test(esgotamento_sanitario ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot da taxa de homício dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = taxa_homicidio)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)), 
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: taxa de homicídio por pessoas que migraram e permanceram",
+       x = NULL,
+       y = "Taxa de homicídio por 100 mil hab.") +
+  theme_minimal()
+
+shapiro.test(data$taxa_homicidio)
+
+wilcox.test(taxa_homicidio ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot da nota do IDEB anos iniciais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que a nota ideb dos municípios com maior grau de retenção são ligeiramente maior.
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = ideb_anosiniciais)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Nota IDEB Anos Iniciais por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Nota IDEB Anos Iniciais") +
+  theme_minimal()
+
+shapiro.test(data$ideb_anosfinais)
+
+wilcox.test(ideb_anosiniciais ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot da nota do IDEB anos finais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
+
+```{r}
+
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = ideb_anosfinais)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Nota IDEB Anos Finais por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Nota IDEB Anos Finais") +
+  theme_minimal()
+
+shapiro.test(data$ideb_anosfinais) 
+
+wilcox.test(ideb_anosfinais ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot do número de equipamentos esportivos dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que os municípios com maior grau de retenção tem infraestrutura esportiva maior.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = investimento_infraestrutura)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Equipamentos esportivos por mil hab por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Equipamentos esportivos por mil hab") +
+  theme_minimal()
+
+shapiro.test(data$investimento_infraestrutura)
+
+wilcox.test(investimento_infraestrutura ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot do número de espaços culturais dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística significativa entre os municípios que tiveram profissionais que migraram e permaneceram. Os resultados mostram que os municípios com maior grau de retenção tem maior infraestrutura cultural.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = equpamentos_culturais)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Equipamentos culturais por mil hab. por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Equipamentos culturais por mil hab.") +
+  theme_minimal()
+
+shapiro.test(data$equpamentos_culturais) 
+
+wilcox.test(equpamentos_culturais ~ churn, data = data, alternative = "two.sided")
+```
+
+Abaixo o boxplot da distância da capital em km dos municípios desagregado pelo churn. Os testes indicam não normalidade na distribuição de probabilidade e diferença estatística não significativa entre os municípios que tiveram profissionais que migraram e permaneceram.
+
+```{r}
+data |> 
+  mutate(churn = ifelse(churn == "migrou", "Migrou", "Permanece")) |>
+  ggplot(aes(x = churn, y = distancia_capital)) + 
+  geom_boxplot(fill = "lightblue") +
+  stat_summary(
+    fun = median, 
+    geom = "text", 
+    aes(label = round(..y.., 1)),
+    vjust = -0.5, 
+    color = "black"
+  ) +
+  labs(title = "Boxplot: Distância da capital por pessoas que migraram ou permanceram",
+       x = NULL,
+       y = "Distância da capital (km)") +
+  theme_minimal()
+
+shapiro.test(data$distancia_capital)
+
+wilcox.test(distancia_capital ~ churn, data = data, alternative = "two.sided")
+```
+
+## 4. Diagrama de Sunkey
+
+E nessa última seção, é grafada um diagrama de sunkey que ilustrar como os médicos se deslocaram a nível estadual desde o início no programa até 01/12/2023 que é o período que marca 4,5 anos desde o 18º Ciclo do programa.
+
+```{r}
+teste <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_sankeyplot.xlsx") |> 
+  mutate(regiao_destino = case_when(
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro")) |> 
+  mutate(regiao_final = case_when(
+    (uf_final %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_final %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_final %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_final %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_final %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro"))
+
+# Crie uma tabela de transições entre os estados (regiao_destino -> regiao_final)
+tabela_transicoes <- table(teste$regiao_destino, teste$regiao_final)
+transicoes <- as.data.frame(as.table(tabela_transicoes))
+
+# Nomeie as colunas
+names(transicoes) <- c("source", "target", "value")
+
+# Converta as variáveis para índices numéricos (necessário para o Sankey)
+regioes_unicas_origem <- unique(teste$regiao_destino)  # Nó de origem
+regioes_unicas_destino <- unique(teste$regiao_final)   # Nó de destino
+
+# Ajustar para separar os nós de origem e destino
+transicoes$source <- match(transicoes$source, regioes_unicas_origem) - 1
+transicoes$target <- match(transicoes$target, regioes_unicas_destino) + length(regioes_unicas_origem) - 1  # Ajusta a posição do nó de destino
+
+# Gerar o gráfico de Sankey
+sankey <- plot_ly(
+  type = "sankey",
+  domain = list(x = c(0, 1), y = c(0, 1)),
+  orientation = "h",  # Para garantir que os nós fiquem na horizontal
+  node = list(
+    pad = 15,
+    thickness = 20,
+    line = list(color = "black", width = 0.5),
+    label = c(regioes_unicas_origem, regioes_unicas_destino)  # Nomes dos nós de origem e destino
+  ),
+  link = list(
+    source = transicoes$source,
+    target = transicoes$target,
+    value = transicoes$value
+  )
+)
+
+# Exibir o gráfico
+sankey
+#saveWidget(sankey, "~/GitHub/sa_maismedicos/01_dados/Editais/2019/sankeyplot_interativo.html")
+```

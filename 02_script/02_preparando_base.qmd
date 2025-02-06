@@ -64,6 +64,18 @@ library(patchwork)
 
 ## 1. Montagem da base de dados.
 
+Seguindo o objetivo do script, a elaboração da base de dados com os fatores (variáveis) relacionados aos médicos participantes do programa seguirá a seguinte estrutura:
+
+1.1 **Tratamento preliminar**: A partir da identificação dos médicos por meio de webscraping, realiza-se a validação dos profissionais empossados com base no levantamento do histórico profissional.
+
+1.2 **Atributos a nível individuo**: São levantadas as variáveis relacionados aos médicos de forma individualizada.
+
+1.3 **Atributos a nível estabelecimento**: São levantadas as variáveis que caracterizam os estabelecimentos de saúde que receberam médicos do programa.
+
+1.4 **Atributos a nível município**: São levantadas as variáveis que caracterizam os municípios que receberam médicos do programa.
+
+Conforme estrutura mencionada, a elaboração inicia com o tratamento preliminar que é realizado logo a seguir.
+
 ## 1.1. Tratamento de dados do Mais Médicos
 
 A primeira etapa consiste na elaboração da base de dados com tratamento do Mais Médicos.
@@ -174,9 +186,9 @@ lista_cpf <-
 
 ```
 
-Observa-se que a lista de CPF's retornou apenas 2034 observações (nove a menos que o original). Esse número reduzido é devido a médicos duplicados em razão de registros com letras de nomes trocadas. Agora já indeiticada a variável CPF_PROF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF_PROF.
+Observa-se que a lista de CPF's retornou apenas 2034 observações (nove a menos que o original). Esse número reduzido é devido a médicos duplicados em razão de registros com letras de nomes trocadas. Agora já identificada a variável CPF_PROF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF_PROF.
 
-Observação: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
+**Observação**: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
 
 ``` sql
 SELECT a.COMPETEN,
@@ -311,6 +323,11 @@ temp <-
                    "Foi alocado", 
                    "Não foi alocado")) 
 
+temp2 <- temp |> 
+        filter(assumiu_programa == "Foi alocado") |> 
+        group_by(CPF_PROF) |> 
+        slice_min(COMPETEN)
+
 vetor_saida <- 
   lista_cns_cpf |> 
   anti_join(temp2, by = c("CPF_PROF")) 
@@ -321,7 +338,7 @@ dim(vetor_saida)
 
 Cerca de 387 indivíduos saíram da base, pois não assumiram o programa. Abaixo temos alguns exemplos.
 
--   A médica, cujo código CPF criptografado é "\<82\>\<83\>~\<82\>\<80\>~\<80\>}{{", foi designada ao município de José de Freitas (PI). Porém, ao longo do ano de 2019 ela não esteve nenhum mês no município. Os primeiros registros dela após 2019 foram apenas no ano de 2022 em Epitaciolândia (AC).
+-   A médica, cujo código CPF criptografado é "\<82\>\<83\>~\<82\>\<80\>~\<80\>}{{", foi designada ao município de José de Freitas (PI). Porém, ao longo do ano de 2019 ela não esteve nenhum mês no município. Os primeiros registros dela após 2019 foram apenas no ano de 2022 em Epitaciolândia (AC).
 
 ```{r}
 
@@ -369,13 +386,6 @@ Logo retirando os 363 casos acima, mantemos 1670 indivíduos na base. Desta form
 
 ```{r}
 
-temp2 <- temp |> 
-        filter(assumiu_programa == "Foi alocado") |> 
-        group_by(NOMEPROF, 
-                 CPF_PROF, 
-                 CNS_PROF) |> 
-        slice_min(COMPETEN)
-
 # Filtrando a base apenas com os médicos ingressantes
 
 base_tratada2 <- 
@@ -402,7 +412,7 @@ base_tratada2 <-
 
 Criamos duas variáveis de desfecho:
 
-1.  churn (variável dicotômica, permanece ou não no município ao qual foi alocado, após 4.5 anos);
+1.  churn (variável dicotômica, permanece ou não no município ao qual foi alocado, após 5 anos);
 
 2.  tempo de permanência (variável quantitativa, medida em meses);
 
@@ -432,6 +442,8 @@ churn <-
 table(churn$churn)
 
 
+vetor_saida2 <- temp2 |> 
+  filter(CPF_PROF %ni% churn$cpf_prof)
 ```
 
 É importante observar que o somatório é 1460 (1130 + 330), ou seja, menor que o número inicial. Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
@@ -483,7 +495,7 @@ base_tratada3 <- base_tratada2 |>
 
 ### 1.2.2. Tempo de permanência
 
-A variável de desfecho foi construída com o objetivo de verificar se a pessoa sai do município onde foi designada cerca de 4,5 anos após o início do programa. Lembrando que o programa tem duração de 48 meses.
+A variável de desfecho foi construída com o objetivo de verificar se a pessoa sai do município onde foi designada cerca de 5 anos após o início do programa. Lembrando que o programa tem duração de 48 meses.
 
 ```{r}
 
@@ -737,7 +749,7 @@ base_tratada3 |>
 
 ```
 
-Em contrapartida, o profissional identificado pelo código "{}\~}}\|\<80\>\<82\>\~" começa a atuar na APS em junho de 2020. Ao longo de todo o período, a pessoa se mantém no mesmo município que foi alocada (Mutum-MG). Inclusive, é o tipo de caso que já atuava antes no mesmo município.
+Em contrapartida, o profissional identificado pelo código "{}\~}}\|\<80\>\<82\>\~" começa a atuar na APS em junho de 2019. Ao longo de todo o período, a pessoa se mantém no mesmo município que foi alocada (Mutum-MG). Inclusive, é o tipo de caso que já atuava antes no mesmo município.
 
 Todos os meses ele atuava no município, vinculado não só a APS, mas outros estabelecimentos.
 
@@ -791,16 +803,38 @@ A próxima etapa será identificar os profissionais que tiveram a permanência n
 
 ```{r}
 
-prorrogacao_ciclo18 <- 
+prorrogacao <- 
   read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/prorrogacao_ciclo18.xlsx")
 
-base_tratada8 <- 
-  base_tratada7 |>   
-  left_join(prorrogacao_ciclo18, 
-            by = c("nomeprof" = "NOME")) |>   
+base_atributos <- 
+  base_atributos |>   
+  left_join(prorrogacao, 
+            by = c("nome" = "NOME")) |>   
   mutate(Prorrogado = ifelse(is.na(Prorrogado), 
                              "NÃO", 
                              Prorrogado))
+
+
+base_atributos |>
+  group_by(Prorrogado) |> 
+  summarise(quantidade = n()) |> 
+  mutate(percentual = round(quantidade/sum(quantidade)*100,2))
+
+```
+
+Dos 1460 médicos, 623 (42,64%) tiveram sua adesão prorrogada por mais um ano e 837 (57,33%) não prorrogaram.
+
+Abaixo visualizaremos a informação desagregada por churn.
+
+```{r}
+base_atributos |> 
+  group_by(churn, Prorrogado) |> 
+  count() |> 
+  ggplot(aes(x = churn, 
+             y = n, fill = Prorrogado)) +
+  geom_col(position = "fill") +
+  coord_flip() + 
+  theme_minimal()
 
 ```
 
@@ -827,39 +861,63 @@ anos_formado <-
                                  anos_formacao)) |> 
   select(cpf_prof, anos_formacao)
 
+
+print(paste("Média:", round(mean(anos_formado$anos_formacao),2)))
+print(paste("Mediana: ", round(median(anos_formado$anos_formacao),2)))
 ```
 
-Juntando com a base anterior.
+A média do tempo de formação são de 5,2 anos, no entanto como há muitos outliers calcula-se também a mediana que é de 1,8 anos, dessa forma, observa-se que a maioria dos médicos tem até 2 anos de formação.
+
+```{r}
+a <- anos_formado |>    
+  ggplot(aes(y = anos_formacao)) +  
+  geom_boxplot() +    
+  ylab("Anos de formação")  
+
+b <- anos_formado |>    
+  ggplot(aes(x = anos_formacao)) +   
+  geom_histogram() +    
+  xlab("Anos de formação") +   
+  ylab("Frequência")  
+
+a + b
+```
+
+Juntando a base.
 
 ```{r}
 
-base_tratada9 <- 
-  base_tratada8 |> 
+base_atributos <- 
+  base_atributos |> 
   left_join(anos_formado, 
             by = c("cpf_prof"))
-
 ```
 
-Por fim, feitos todos os tratamentos, vamos manter apenas uma observação por indivíduo.
+Desagregando pelo churn é possível observar que os anos de formação dos indivíduos que permanceram é maior em relação aos que migraram.
+
+```{r}
+base_atributos |> 
+  ggplot(aes(y=anos_formacao, fill = churn)) +
+  geom_boxplot() +
+  theme_minimal() + 
+  ylab("Anos de formação") +
+  theme(axis.text.x = element_blank())
+  
+```
+
+A tabela abaixo quantifica a diferença dos anos de formação por churn.
 
 ```{r}
 
-base_tratada10 <- 
-  base_tratada9 |> 
-    filter(tp_unid == "01"|
-           tp_unid == "02"|
-           tp_unid == "32"|
-           tp_unid == "71"|
-           tp_unid == "72"|
-           tp_unid == "74") |> 
-  group_by(cpf_prof) |>
-  slice_min(order_by = competen, 
-            with_ties = FALSE) 
-
-
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média_anos_formacao = mean(anos_formacao),
+            sd = sd(anos_formacao))
 ```
 
 ## 1.3. Atributos a nível estabelecimento
+
+Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos que receberam médicos do programa, tais como, número de leitos e profissionais.
 
 ### 1.3.1 Número de leitos das unidades
 
@@ -934,7 +992,9 @@ Acessando dados de leitos das unidades de APS as quais os indivíduos foram aloc
 leitos_unidades <- 
   leitos |> 
   mutate(Ano = as.numeric(Ano)) |> 
-  filter(CNES %in% temp$CNES)
+  filter(CNES %in% temp2$CNES) |> 
+  filter(Ano == 2019) |> 
+  
 
 leitos$Ano <- as.numeric(leitos$Ano)
 
