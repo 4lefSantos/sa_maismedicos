@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-# Sequence Analysis: Programa Mais Médicos para o Brasil (PMMB)
+# Churn Prediction: Programa Mais Médicos para o Brasil (PMMB)
 
 O objetivo desse trabalho é realizar uma análise do Programa Mais Médicos para o Brasil referente ao 18º Ciclo (EDITAL Nº 11, DE 10 DE MAIO DE 2019), o programa é direcionado para atenção básica de saúde.
 
@@ -321,15 +321,16 @@ dim(vetor_saida)
 
 Cerca de 387 indivíduos saíram da base, pois não assumiram o programa. Abaixo temos alguns exemplos.
 
--   A médica, cujo código CNS é 700609938922960, foi designada ao município de José de Freitas (PI). Porém, ao longo do ano de 2019 ela não esteve nenhum mês no município. Os primeiros registros dela após 2019 foram apenas no ano de 2022 em Epitaciolândia (AC).
+-   A médica, cujo código CPF criptografado é "\<82\>\<83\>~\<82\>\<80\>~\<80\>}{{", foi designada ao município de José de Freitas (PI). Porém, ao longo do ano de 2019 ela não esteve nenhum mês no município. Os primeiros registros dela após 2019 foram apenas no ano de 2022 em Epitaciolândia (AC).
 
 ```{r}
 
 base_tratada |> 
   filter(year(COMPETEN) >= 2019) |> 
   filter(CPF_PROF == "<82><83>~<82><80>~<80>}{{") |> 
-   select(COMPETEN, uf_destino, municipio_destino, uf_sigla,
-         municipio_pad) |> 
+   select(COMPETEN, uf_destino,
+          municipio_destino, uf_sigla,
+          municipio_pad) |> 
   arrange(COMPETEN) |> 
   DT::datatable()
 
@@ -385,11 +386,13 @@ base_tratada2 <-
     mutate(ch_total = horahosp + 
                       hora_amb + 
                       horaoutr) |> 
-    select(ano, competen, codufmun, ibge_aloc, 
+    select(ano, competen, codufmun, 
+           municipio_pad, ibge_aloc, 
            municipio_destino, uf_destino, 
            cnes, tp_unid, fantasia, nomeprof, 
-           cns_prof, cpf_prof, data_nascimento, 
-           data_formacao, participou_pmmb, 
+           cns_prof, cpf_prof, 
+           data_nascimento, data_formacao, 
+           participou_pmmb, 
            sexo, ch_total) |>
     filter(competen >= '2019-01-01')
 
@@ -416,8 +419,8 @@ churn <-
   filter(competen == "2024-12-01") |> 
   mutate(churn = 
            if_else(codufmun == ibge_aloc, 
-                   "migrou", 
-                   "permanece")) |> 
+                   "permanece", 
+                   "migrou")) |> 
   select(cpf_prof, churn) |> 
   distinct() |>  
 # Se o individuo estiver atuando no mesmo municipio e em outra localidade limitrofe, vamos marcar como "permanece". O codigo abaixo faz isso 
@@ -431,7 +434,7 @@ table(churn$churn)
 
 ```
 
-É importante observar que o somatório é 1460 (562 + 898), ou seja, menor que o número inicial. Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
+É importante observar que o somatório é 1460 (1130 + 330), ou seja, menor que o número inicial. Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
 
 Abaixo colocamos alguns exemplos que ocorreram isso.
 
@@ -469,6 +472,15 @@ base_tratada |>
 
 ```
 
+A base a seguir exclui os casos de indivíduos que não estavam atuando mais no final de 2024 (independente de estarem no município onde foram alocados ou não), que resulta em 1460 indivíduos.
+
+```{r}
+
+base_tratada3 <- base_tratada2 |>    
+  filter(cpf_prof %in% churn$cpf_prof) 
+
+```
+
 ### 1.2.2. Tempo de permanência
 
 A variável de desfecho foi construída com o objetivo de verificar se a pessoa sai do município onde foi designada cerca de 4,5 anos após o início do programa. Lembrando que o programa tem duração de 48 meses.
@@ -476,7 +488,7 @@ A variável de desfecho foi construída com o objetivo de verificar se a pessoa 
 ```{r}
 
 meses_trabalho <-    
-  base_tratada2 |>      
+  base_tratada3 |>      
   group_by(cpf_prof) |>       
   mutate(         
     meses_no_local_alocado =            
@@ -488,9 +500,11 @@ meses_trabalho <-
          meses_no_local_alocado) |>      
   distinct() 
 
+mean(meses_trabalho$meses_no_local_alocado)
+
 ```
 
-O exemplo que mostramos anteriormente é evidente quanto a isso. O profissional atuou no município de destino por sete meses, entre agosto de 2019 e fevereiro de 2020.
+O exemplo que mostramos anteriormente é evidente quanto a isso. O profissional atuou no município de destino por sete meses, entre agosto de 2019 e fevereiro de 2020. Porém, os últimos registros são este ano. Após isso, não aparece mais na base.
 
 ```{r}
 
@@ -507,23 +521,7 @@ base_tratada |>
 
 ```
 
-```{r}
-
-base_tratada |> 
-  filter(CPF_PROF == 
-           "<82>{<84><84>}{<80><82><83>") |> 
-  filter(year(COMPETEN) >= 2019) |> 
-  select(COMPETEN, 
-         municipio_destino, 
-         uf_destino,
-         municipio_pad) |> 
-  arrange(COMPETEN) |> 
-  filter(municipio_pad == "UTINGA") |> 
-  DT::datatable()
-
-```
-
-A mediana do tempo de atuação no mesmo local é de 40 meses.
+A média do tempo de atuação no mesmo local é de aproximadamente 43 meses.
 
 ```{r}
 
@@ -541,18 +539,119 @@ b <- meses_trabalho |>
 a + b
 ```
 
+Aqui vamos começar a organizar a base então. Lembrando que pelo número de observações serão 1460 linhas.
+
+```{r}
+
+base_vd <- 
+  cns_inscricao |> 
+  filter(CPF_PROF %in% churn$cpf_prof) |> 
+  left_join(meses_trabalho,
+            by = c("CPF_PROF"="cpf_prof")) |> 
+  left_join(churn,
+            by = c("CPF_PROF"="cpf_prof"))
+
+```
+
+Vamos fazer algumas análises exploratórias iniciais.
+
+Percebe-se que em alguns estados houve uma migração mais elevada, que são os casos de Roraima, Sergipe e Alagoas.
+
+```{r}
+
+base_vd |> 
+  group_by(churn, uf_destino) |> 
+  count() |> 
+  ggplot(aes(x = uf_destino, 
+             y = n, fill = churn)) +
+  geom_col(position = "fill") +
+  coord_flip() + 
+  xlab("UF") +
+  ylab("Percentual migração vs permanência") + 
+  theme_minimal()
+
+```
+
+Em relação ao tempo média de permanência, temos o seguinte gráfico.
+
+```{r}
+
+base_vd |> 
+  group_by(uf_destino) |> 
+  summarise(tempo = mean(meses_no_local_alocado)) |> 
+  ggplot(aes(x = fct_reorder(uf_destino, tempo), 
+             y = tempo)) +
+  geom_col() +
+  coord_flip() +
+  xlab("UF") + 
+  ylab("Tempo médio de permanência") +
+  theme_minimal()
+
+```
+
+A partir da próxima seção vamos agregar algumas variáveis a nível indivíduo.
+
 ## 1.3. Atributos a nível indivíduo
 
 Vamos começar a levantar alguns atributos a nível indivíduo.
 
-### 1.3.1 Atuação prévia
+### 1.3.3 Idade
+
+Adicionando a variável de idade. Percebemos que as pessoas que migram, tendem a ser mais novas.
+
+```{r}
+
+base_vd <- base_vd |> 
+  mutate(idade = round(interval(data_nascimento,as.Date("2024-12-12"))/years(1)))
+
+base_vd |> 
+  group_by(churn) |> 
+  summarise(idade_media = mean(idade),
+            idade_sd = sd(idade))
+
+```
+
+Os gráficos abaixo ratificam os resultados.
+
+```{r}
+
+base_vd |> 
+  ggplot(aes(x = idade, fill = churn)) + 
+  geom_histogram(binwidth = 1, 
+                 color = "black",
+                 alpha = 0.7) +  
+  geom_vline(xintercept = 39, 
+             linetype = "dashed", 
+             color = "black") +  
+  geom_vline(xintercept = 45, 
+             linetype = "dashed", 
+             color = "black") +  
+  annotate("text", 
+           x = 39, 
+           y = Inf, 
+           label = "Migrou", 
+           vjust = 1.5, 
+           hjust = 1.1,
+           fontface = "bold") +  
+  annotate("text", x = 45, y = Inf, 
+           label = "Permanece", 
+           vjust = 3.5, 
+           hjust = -0.10, 
+           fontface = "bold") +  
+  theme_minimal()
+
+```
+
+### 1.3.2 Atuação prévia
 
 Vamos acessar para ver se aquele indivíduo atuou na cidade onde foi destinado em anos anteriores a 2019. Além disso, verificamos quantos meses ele atuou nesta localidade.
 
 ```{r}
 
+# estou usando 'base_tratada' e nao a 'base_tratada3' pois la retiramos os registros antes de 2019 para fazer uns tratamentos 
+
 atuacao <- 
-  base_tratada |> 
+    base_tratada |> 
     mutate(ano = year(COMPETEN)) |> 
     filter(ano < 2019 & 
              CODUFMUN == ibge_aloc) |> 
@@ -561,7 +660,7 @@ atuacao <-
     group_by(ibge_aloc, CPF_PROF) |> 
     count() |> 
     mutate(atuacao_previa_no_municipio = "Sim") |> 
-    mutate(anos_atuacao_mesmo_municipio = n/12) |> 
+    mutate(anos_atuacao_previa_no_municipio = n/12) |> 
     ungroup() |> 
     select(-ibge_aloc)
 
@@ -573,30 +672,30 @@ Depois de preparar a base, vamos juntar à base original.
 
 ```{r}
 
-base_tratada3 <- 
-  base_tratada2 |> 
-  left_join(atuacao, 
-            by = c("cpf_prof"="CPF_PROF")) |> 
-  mutate(atuacao_previa_no_municipio = 
-           if_else(atuacao_previa_no_municipio == 
-                     "Sim",
-                     "Sim","Não")) 
+base_atributos <- 
+      base_vd |> 
+      left_join(atuacao, 
+                by = c("CPF_PROF")) |> 
+      mutate(atuacao_previa_no_municipio = 
+             if_else(atuacao_previa_no_municipio == 
+                       "Sim","Sim","Não")) |> 
+      select(-n) |> 
+      janitor::clean_names()
 
+base_atributos$atuacao_previa_no_municipio[is.na(base_atributos$atuacao_previa_no_municipio)] <- "Não"
 
-base_tratada3$atuacao_previa_no_municipio[is.na(base_tratada3$atuacao_previa_no_municipio)] <- "Não"
-
-base_tratada3$anos_atuacao[is.na(base_tratada3$anos_atuacao)] <- 0
+base_atributos$anos_atuacao_previa_no_municipio[is.na(base_atributos$anos_atuacao_previa_no_municipio)] <- 0
 
 ```
 
-### 1.2.2 Quantidade média de vínculos enquanto está na mesma cidade
+### 1.3.3 Quantidade média de vínculos enquanto está na mesma cidade
 
 Para isso, vamos verificar, desde de meados de 2019, quantos vínculos o indivíduos tinha por competência no mesmo município onde ele foi alocado.
 
 ```{r}
 
 vinculos_cidade <- 
-  base_tratada2 |> 
+  base_tratada3 |> 
   filter(competen > '2019-05-01') |> 
   group_by(cpf_prof, competen, 
            codufmun, ibge_aloc) |> 
@@ -605,123 +704,86 @@ vinculos_cidade <-
   filter(codufmun == ibge_aloc) |> 
   select(cpf_prof, competen, n) |> 
   group_by(cpf_prof) |> 
-  summarise(media_vinculos = mean(n))
+  summarise(media_vinculos_mes = mean(n))
 
 ```
 
-Juntando com a base tratada
+Juntando com a base tratada.
 
 ```{r}
 
-base_tratada4 <- 
-  base_tratada3 |> 
+base_atributos <- 
+  base_atributos |> 
   left_join(vinculos_cidade, 
             by = c("cpf_prof"))
 
 ```
 
-### 1.2.3 Quantidade de meses que fica no município onde foi designado
-
-A seguir, é criado a variável que mede o tempo em meses do tempo de permanência na cidade de designação. Esta uma das variáveis de desfecho.
+A maioria dos registros ficou apenas em um só estabelecimento ao longo de todo o período. O profissional identificado pelo código "\<80\>\<84\>\~\~\<80\>}\<83\>\<84\>}\<82\>}" é um bom exemplo. O profissional mudou de unidade (sempre na APS), mas sempre com apenas um vínculo.
 
 ```{r}
 
-meses_trabalho <- 
-  base_tratada2 |>
-      group_by(cpf_prof) |>
-      mutate(
-        meses_no_local_alocado = 
-          interval(
-            min(competen[codufmun == ibge_aloc]), 
-            max(competen[codufmun == ibge_aloc])) %/% months(1)) |>
-      ungroup() |> 
-  select(cpf_prof, meses_no_local_alocado) |>   distinct()
+base_tratada3 |> 
+  filter(cpf_prof == "<80><84>~~<80>}<83><84>}<82>}") |> 
+  select(competen, 
+         uf_destino,
+         municipio_destino,
+         codufmun,
+         municipio_pad,
+         fantasia) |> 
+  DT::datatable()
+  
+  
 
 ```
 
-Juntando com a base onde estamos fazendo os tratamentos.
+Em contrapartida, o profissional identificado pelo código "{}\~}}\|\<80\>\<82\>\~" começa a atuar na APS em junho de 2020. Ao longo de todo o período, a pessoa se mantém no mesmo município que foi alocada (Mutum-MG). Inclusive, é o tipo de caso que já atuava antes no mesmo município.
+
+Todos os meses ele atuava no município, vinculado não só a APS, mas outros estabelecimentos.
 
 ```{r}
 
-base_tratada5 <- 
-  base_tratada4 |> 
-  left_join(meses_trabalho, 
-            by = c("cpf_prof"))
-
+base_tratada3 |> 
+  filter(cpf_prof == "{}~}}|<80><82>~") |> 
+  select(competen, 
+         uf_destino,
+         municipio_destino,
+         codufmun,
+         municipio_pad,
+         fantasia,
+         ch_total) |> 
+  DT::datatable()
 
 ```
 
-### 1.2.4 Churn
-
-Esta variável também é de desfecho e ela tem como objetivo verificar se a pessoa saiu do município onde foi designada cerca de 4,5 anos após o início do programa. Lembrando que o programa tem duração de 48 meses.
+Observa-se que há maior variedade no número de vínculos entre os profissionais que permaneceram.
 
 ```{r}
 
-churn <- 
-  base_tratada2 |> 
-  filter(competen == "2023-12-01") |> 
-  mutate(churn = 
-           if_else(codufmun == ibge_aloc, 
-                   "migrou", 
-                   "permanece")) |> 
-  select(cpf_prof, churn) |> 
-  distinct() |>  
-# Se o individuo estiver atuando no mesmo municipio e em outra localidade limitrofe, vamos marcar como "permanece". O codigo abaixo faz isso 
-  arrange(cpf_prof, churn) |> 
-  group_by(cpf_prof) |> 
-  slice(1) |> 
-  ungroup()
-
-```
-
-Juntando à base original.
-
-```{r}
-
-base_tratada6 <- 
-  base_tratada5 |> 
-  left_join(churn, 
-            by = c("cpf_prof"))
-
-
-base_tratada6$churn[is.na(base_tratada6$churn)] <- "migrou"
-
-```
-
-### 1.2.5 Idade ao entrar no programa
-
-O objetivo desta análise é verificar a idade do indivíduo na primeira competência que ele começa a trabalhar no programa.
-
-```{r}
-
-idade <- 
-  base_tratada2 |> 
-  group_by(cpf_prof) |>
-  slice_min(order_by = competen, 
-            with_ties = FALSE) |>
-  ungroup() |>
-  mutate(idade_em_anos = 
-           as.numeric(difftime(competen,
-                               data_nascimento, 
-                               units = "days")) / 365.25) |> 
-  select(cpf_prof, idade_em_anos) |> 
-  distinct()
-
-
-
-
-```
-
-Juntando com a base.
-
-```{r}
-
-base_tratada7 <- 
-  base_tratada6 |>
-  left_join(idade, 
-            by = c("cpf_prof"))
+base_atributos |> 
+  ggplot(aes(y = media_vinculos_mes,
+             fill = churn)) +
+  geom_boxplot() +
+  theme_minimal() + 
+  ylab("Média de vínculos por mês no\n mesmo local") + 
+  theme(axis.text.x = element_blank())
   
 ```
+
+Os resultados abaixos ratificam os resultados do gráfico.
+
+```{r}
+
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media_vinculos = 
+              mean(media_vinculos_mes),
+            sd_vinculos = 
+              sd(media_vinculos_mes))
+
+```
+
+# ALEF!!!! CONTINUAR POR AQUI
 
 ### 1.2.6 Renovação
 
