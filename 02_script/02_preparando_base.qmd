@@ -977,6 +977,7 @@ query <- 'SELECT * FROM "@alef_santos"."pmmb_leitos_v2"'
 
 leitos <- sqlQuery(channel, query, 
                      as.is = TRUE)
+
 ```
 
 Acessando dados de leitos das unidades de APS as quais os indivíduos foram alocados.
@@ -1730,7 +1731,8 @@ Em termos de média, a diferença do orçamento per capita é pequena, sendo mai
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(orcamento_saude = round(mean(orcamento_saude),2)) |> 
+  summarise(orcamento_saude = 
+              round(mean(orcamento_saude),2)) |> 
   DT::datatable()
 ```
 
