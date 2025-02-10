@@ -866,17 +866,24 @@ print(paste("Mediana: ", round(median(anos_formado$anos_formacao),2)))
 
 A média do tempo de formação são de 5,2 anos, no entanto como há muitos outliers calcula-se também a mediana que é de 1,8 anos, dessa forma, observa-se que a maioria dos médicos tem até 2 anos de formação.
 
-```{r}
-a <- anos_formado |>    
-  ggplot(aes(y = anos_formacao)) +  
-  geom_boxplot() +    
-  ylab("Anos de formação")  
+Ao desagregar por churn, observa-se que o tempo de formação é maior entre os permanceram nas cidades em que foram alocados.
 
-b <- anos_formado |>    
-  ggplot(aes(x = anos_formacao)) +   
-  geom_histogram() +    
-  xlab("Anos de formação") +   
-  ylab("Frequência")  
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = anos_formacao,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Nota IDEB") +
+  ylab("Nota IDEB - Anos Iniciais")
+
+b <- base_atributos |>
+  ggplot(aes(x= anos_formacao)) + 
+  geom_histogram() +
+  xlab("Nota IDEB - Anos Iniciais") +
+  ylab("Frequência")
 
 a + b
 ```
@@ -891,25 +898,13 @@ base_atributos <-
             by = c("cpf_prof"))
 ```
 
-Desagregando pelo churn é possível observar que os anos de formação dos indivíduos que permanceram é maior em relação aos que migraram.
-
-```{r}
-base_atributos |> 
-  ggplot(aes(y=anos_formacao, fill = churn)) +
-  geom_boxplot() +
-  theme_minimal() + 
-  ylab("Anos de formação") +
-  theme(axis.text.x = element_blank())
-  
-```
-
 A tabela abaixo quantifica a diferença dos anos de formação por churn.
 
 ```{r}
 
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média_anos_formacao = mean(anos_formacao),
+  summarise(média_anos_formacao = round(mean(anos_formacao),2),
             sd = sd(anos_formacao)) |> 
   DT::datatable()
 ```
@@ -1219,13 +1214,23 @@ teste <- equipamentos |>
 
 ## 1.4. Atributos a nível município
 
-Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Divideremos esses atributos em grupos.
+Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Essas variáveis são agrupadas de acordo sobre os aspectos econômicos, de saúde, segurança pública, educação e infraestrutura.
 
 ### 1.4.1 Indicadores econômicos
+
+Abaixo, conforme estrutura mencionada, as variáveis que indicam nível de atividade econômica.
 
 #### 1.4.1.1 População e porte
 
 A partir de dados do Censo 2022 do IBGE identificaremos a população dos municipios, e classificaremos por porte de acordo com a população.
+
+O porte dos município é classificado de acordo com sua população:
+
+**Pequeno Porte I**: Até 20.000 habitantes.\
+**Pequeno Porte II**: Entre 20.000 e 50.000 habitantes.\
+**Médio Porte**: Entre 50.000 e 100.000 habitantes.\
+**Grande Porte**: Entre 100.000 e 900.000 habitantes.\
+**Metrópole**: Mais de 900.000 habitantes.
 
 ```{r}
 #Carregando a base de contigente populacional
@@ -1340,24 +1345,42 @@ pib_percapita <- pib_percapita |>
 base_atributos <- base_atributos |> 
   left_join(pib_percapita, by = c("ibge_aloc" = "codigo_municipio"))
 
-print(paste("Média:", round(mean(base_atributos$pib_percapita),2)))
+base_atributos |> 
+  distinct(ibge_aloc, pib_percapita) |> 
+  summarise(média = mean(pib_percapita))
 ```
 
-A média do PIB per capita dos municípios é de R\$ 17.653,51.
+A média do PIB per capita dos municípios é de R\$ 18.049,82. Ao desagregar por churn, é possível observar uma mediana maior entre os que permanecem.
 
 ```{r}
-a <- base_atributos |>    
-  ggplot(aes(y = pib_percapita)) +  
-  geom_boxplot() +    
-  ylab("PIB per capita")  
+a <- base_atributos |> 
+  ggplot(aes(x = pib_percapita,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Reais (R$)") +
+  ylab("PIB per capita") +
+  scale_x_continuous(labels = scales::label_comma())
 
-b <- base_atributos |>    
-  ggplot(aes(x = pib_percapita)) +   
-  geom_histogram() +    
-  xlab("PIB per capita") +   
-  ylab("Frequência")  
+b <- base_atributos |>
+  distinct(ibge_aloc, pib_percapita) |> 
+  ggplot(aes(x= pib_percapita)) + 
+  geom_histogram() +
+  xlab("PIB per capita") +
+  ylab("Frequência") +
+  scale_x_continuous(labels = scales::label_comma())
 
 a + b
+```
+
+Em termos de média, assim como na mediana, é maior entre os que permaneceram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(pib_percapita))
 ```
 
 Abaixo é possível identificar o município com o maior PIB per capita que é de R\$ 353.505,22 com uma população de 8.142 habitantes.
@@ -1404,10 +1427,12 @@ base_atributos <-
   mutate(tx_pop_ocupada = pop_ocupada/populacao) |> 
   select(-pop_ocupada)
 
-print(paste("Média:", round(mean(base_atributos$tx_pop_ocupada),2)))
+base_atributos |> 
+  distinct(ibge_aloc, tx_pop_ocupada) |> 
+  summarise(média = mean(tx_pop_ocupada))
 ```
 
-A média das taxas de ocupação dos municípios é de 12%, sendo que ela é maior nos municípios em que os médicos permanecem conforme boxplot abaixo.
+A média das taxas de ocupação dos municípios é de 11,7%, sendo que ela é maior nos municípios em que os médicos permanecem conforme boxplot abaixo.
 
 ```{r}
 a <- base_atributos |> 
@@ -1420,7 +1445,8 @@ a <- base_atributos |>
   ylab("Taxa de ocupação") +
   theme(axis.text.x = element_blank())
 
-b <- base_atributos |>    
+b <- base_atributos |>  
+  distinct(ibge_aloc, tx_pop_ocupada) |> 
   ggplot(aes(x = tx_pop_ocupada)) +   
   geom_histogram() +    
   xlab("Taxa de ocupação") +   
@@ -1509,10 +1535,12 @@ cobertura_saude <- cobertura_saude |>
 base_atributos <- base_atributos |> 
   left_join(cobertura_saude, by = c("ibge_aloc" = "cod_ibge"))
 
-cat("Média:",mean(base_atributos$cobertura_saude))
+base_atributos |> 
+  distinct(ibge_aloc, cobertura_saude) |> 
+  summarise(média = mean(cobertura_saude))
 ```
 
-A média de cobertura de saúde dos municípios é de 11,5%, e quando desagregado por churn é maior entre os municípios com indivíduos que permaneceram conforme pode ser visto abaixo.
+A média de cobertura de saúde dos municípios é de 8,8%, e quando desagregado por churn é maior entre os municípios com indivíduos que permaneceram conforme pode ser visto abaixo.
 
 ```{r}
 a <- base_atributos |> 
@@ -1555,10 +1583,12 @@ base_atributos |>
 O município com a menor taxa de cobertura de saúde é Santa Isabel do Rio Negro com 0,13%.
 
 ```{r}
+
 base_atributos |> 
   filter(cobertura_saude == min(cobertura_saude)) |> 
   select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude) |> 
   DT::datatable()
+
 ```
 
 #### 1.4.2.2 Número vagas de medicina
@@ -1610,10 +1640,13 @@ base_atributos <- base_atributos |>
   mutate(vagas_medicina_milhab = ifelse(is.na(vagas_medicina_milhab), 0, vagas_medicina_milhab)) |> 
   select(-vagas_medicina)
 
-cat("Média:", mean(base_atributos$vagas_medicina_milhab))
+base_atributos |> 
+  distinct(ibge_aloc, vagas_medicina_milhab) |> 
+  summarise(média = mean(vagas_medicina_milhab))
+
 ```
 
-A média de vagas de medicina por mil habitantes é de 0,8 e visualmente pelo boxplot abaixo não é possível observar diferença desagregada por churn, entende-se apenas que a maioria dos municípios não tem vagas em cursos de medicina.
+A média de vagas de medicina por mil habitantes é de 0,3 e visualmente pelo boxplot abaixo não é possível observar diferença desagregada por churn, entende-se apenas que a maioria dos municípios não tem vagas em cursos de medicina.
 
 ```{r}
 a <- base_atributos |> 
@@ -1665,10 +1698,12 @@ base_atributos <- base_atributos |>
   left_join(orcamento_saude, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
 
-cat("Média", mean(base_atributos$orcamento_saude))
+base_atributos |> 
+  distinct(ibge_aloc, orcamento_saude) |> 
+  summarise(média = mean(orcamento_saude))
 ```
 
-A média de orçamento de saúde dos municípios é de R\$ 653,21 e conforme boxplot abaixo não é possível identificar diferença desagregada por churn.
+A média de orçamento de saúde dos municípios é de R\$ 697,27 e conforme boxplot abaixo não é possível identificar diferença desagregada por churn.
 
 ```{r}
 a <- base_atributos |> 
@@ -1730,10 +1765,12 @@ base_atributos <- base_atributos |>
   left_join(esgoto_sanitario, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
 
-cat("Média:", mean(base_atributos$esgotamento_sanitario))
+base_atributos |> 
+  distinct(ibge_aloc, esgotamento_sanitario) |> 
+  summarise(média = mean(esgotamento_sanitario))
 ```
 
-A média da cobertura com esgoto sanitário dos municípios é de 24% e quando desagregado por churn é maior entre os que tiveram indivíduos que permaneceram.
+A média da cobertura com esgoto sanitário dos municípios é de 21% e quando desagregado por churn é maior entre os que tiveram indivíduos que permaneceram.
 
 ```{r}
 
@@ -1756,7 +1793,7 @@ b <- base_atributos |>
 a + b
 ```
 
-Abaixo é possível observar que a média de cobertura de esgoto sanitário é ligeiramente maior entre os que migraram.
+Abaixo é possível observar que a média de cobertura de esgoto sanitário é ligeiramente maior entre os que permaneceram.
 
 ```{r}
 base_atributos |> 
@@ -1776,37 +1813,54 @@ tx_homicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indica
   select(id, Município, taxa_homicidio) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada20 <- base_tratada19 |> 
-  left_join(tx_homicidio, by = c("codufmun" = "id")) |> 
+base_atributos <- base_atributos |> 
+  left_join(tx_homicidio, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
+
+base_atributos |> 
+  distinct(ibge_aloc, taxa_homicidio) |> 
+  summarise(Média = mean(taxa_homicidio))
 ```
 
-#### 1.4.3.2 Mortes por armas de fogo
-
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número de óbitos por armas de fogo ÷ População total do município (x100.000).
+A média da taxa de homicídio dos municípios que receberam médicos do programa é de 26,1 a cada 100 mil habitantes. Na desagregação por churn no boxplot abaixo, a mediana dos municípios de indivíduos que permaneceram é ligeiramente maior.
 
 ```{r}
-armas_fogo <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
-  select(id, Município, mortes_armasdefogo) |> 
-  mutate(id = substr(id, 1, 6))
+a <- base_atributos |> 
+  ggplot(aes(x = taxa_homicidio,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Mortes por mil habitantes") +
+  ylab("Taxa de homicídio")
 
-base_tratada21 <- base_tratada20 |> 
-  left_join(armas_fogo, by = c("codufmun" = "id")) |> 
-  select(-Município)
+b <- base_atributos |>
+  distinct(ibge_aloc, taxa_homicidio) |> 
+  ggplot(aes(x= taxa_homicidio)) + 
+  geom_histogram() +
+  xlab("Taxa de homicídio") +
+  ylab("Frequência")
+
+a + b
 ```
 
-#### 1.4.3.3 Taxa de feminicídio
-
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Mortalidade por causas externas de mulheres ÷ Total de mulheres (x100.000).
+Assim como a mediana demonstrada pelo boxplot, a média das cidades de médicos que permaneceram também é ligeiramente maior em relação das que migraram.
 
 ```{r}
-taxa_feminicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
-  select(id, Município, feminicidio) |> 
-  mutate(id = substr(id, 1, 6))
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = round(mean(taxa_homicidio),2)) |> 
+  DT::datatable()
+```
 
-base_tratada22 <- base_tratada21 |> 
-  left_join(taxa_feminicidio, by = c("codufmun" = "id")) |> 
-  select(-Município)
+O município com maior índice de homicídio é Jussara da Bahia e que recebeu dois médicos do programa.
+
+```{r}
+base_atributos |> 
+  filter(taxa_homicidio == max(taxa_homicidio)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, taxa_homicidio) |> 
+  DT::datatable()
 ```
 
 ### 1.4.4 Indicadores de educação
@@ -1820,9 +1874,64 @@ ideb_inicio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicad
   select(id, Município, ideb_anosiniciais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada23 <- base_tratada22 |> 
-  left_join(ideb_inicio, by = c("codufmun" = "id")) |> 
+base_atributos <- base_atributos |> 
+  left_join(ideb_inicio, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
+
+base_atributos |> 
+  distinct(ibge_aloc, ideb_anosiniciais) |> 
+  summarise(média = mean(ideb_anosiniciais, na.rm = TRUE))
+```
+
+A média dos municípios que receberam médicos do programa é de 5,38. E quando desagregado por churn a mediana dos municípios com médicos que migraram é maior em comparação aos do que permaneceram conforme boxplot abaixo.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = ideb_anosiniciais,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Nota IDEB") +
+  ylab("Nota IDEB - Anos Iniciais")
+
+b <- base_atributos |>
+  distinct(ibge_aloc, ideb_anosiniciais) |> 
+  ggplot(aes(x= ideb_anosiniciais)) + 
+  geom_histogram() +
+  xlab("Nota IDEB - Anos Iniciais") +
+  ylab("Frequência")
+
+a + b
+```
+
+Assim como na mediana, a média também indica diferença.
+
+```{r}
+
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = round(mean(ideb_anosiniciais, na.rm = TRUE),2)) |> 
+  DT::datatable()
+```
+
+O município com a maior nota IDEB dos anos iniciais é Mucambo no Ceará.
+
+```{r}
+base_atributos |> 
+  filter(ideb_anosiniciais == max(ideb_anosiniciais, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais) |> 
+  DT::datatable()
+```
+
+O município com a menor nota IDEB dos anos iniciais é Pedrinhas em Sergipe.
+
+```{r}
+base_atributos |> 
+  filter(ideb_anosiniciais == min(ideb_anosiniciais, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais) |> 
+  DT::datatable()
 ```
 
 #### 1.4.4.1 IDEB anos finais
@@ -1834,9 +1943,64 @@ ideb_final <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicado
   select(id, Município, ideb_anosfinais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada24 <- base_tratada23 |> 
-  left_join(ideb_final, by = c("codufmun" = "id")) |> 
+base_atributos <- base_atributos |> 
+  left_join(ideb_final, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
+
+base_atributos |> 
+  distinct(ibge_aloc, ideb_anosfinais) |> 
+  summarise(média = mean(ideb_anosfinais, na.rm = TRUE))
+```
+
+A média da nota ideb dos anos finais é de 4,29, e assim como na nota dos anos inicias, a nota maior nos municípios com médicos que migraram conforme boxplot.
+
+```{r}
+
+a <- base_atributos |> 
+  ggplot(aes(x = ideb_anosfinais,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Nota IDEB - Anos Finais") +
+  ylab("Nota IDEB")
+
+b <- base_atributos |>
+  distinct(ibge_aloc, ideb_anosfinais) |> 
+  ggplot(aes(x= ideb_anosfinais)) + 
+  geom_histogram() +
+  xlab("Nota IDEB - Anos Finais") +
+  ylab("Frequência")
+
+a + b
+```
+
+Em termos de média, a diferença é decimal.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = round(mean(ideb_anosfinais, na.rm = TRUE),2)) |> 
+  DT::datatable()
+```
+
+O município com a maior nota Ideb dos anos finais é Pires Ferreira no Ceará.
+
+```{r}
+base_atributos |> 
+  filter(ideb_anosfinais == max(ideb_anosfinais, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais) |> 
+  DT::datatable()
+```
+
+O município com a menor nota Ideb dos anos finais é Pedro Osório no Rio Grande do Sul.
+
+```{r}
+base_atributos |> 
+  filter(ideb_anosfinais == min(ideb_anosfinais, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais) |> 
+  DT::datatable()
 ```
 
 ### 1.4.5 Indicadores de infraestrutura
@@ -1851,9 +2015,53 @@ infraestrutura <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indi
   select(id, Município, investimento_infraestrutura) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada25 <- base_tratada24 |> 
-  left_join(infraestrutura, by = c("codufmun" = "id")) |> 
+base_atributos <- base_atributos |> 
+  left_join(infraestrutura, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
+
+base_atributos |> 
+  distinct(ibge_aloc, investimento_infraestrutura) |> 
+  summarise(média = mean(investimento_infraestrutura))
+```
+
+A média per capita do investimento em infraestrutura dos municípios é de R\$ 3.283,30. Ao desagregar por churn, é possível observar uma mediana maior nas cidades de médicos que migraram.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = investimento_infraestrutura,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  ylab("Investimento em infraestrutura per capita") +
+  xlab("Investimento per capita (R$)")
+
+b <- base_atributos |> 
+  ggplot(aes(x = investimento_infraestrutura)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Investimento em infraestrutura per capita")
+
+a + b
+```
+
+Assim como na mediana, a média é maior entre os que migraram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = round(mean(investimento_infraestrutura),2)) |> 
+  DT::datatable()
+```
+
+O municípios com o maior investimento per capita em infraestrutura é Itanagra da Bahia.
+
+```{r}
+base_atributos |> 
+  filter(investimento_infraestrutura == max(investimento_infraestrutura, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, investimento_infraestrutura) |> 
+  DT::datatable()
 ```
 
 #### 1.4.5.2 Equipamentos esportivos municipais
@@ -1865,9 +2073,53 @@ equip_esportivos <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/in
   select(id, Município, equipamentos_esportivos) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada26 <- base_tratada25 |> 
-  left_join(equip_esportivos, by = c("codufmun" = "id")) |> 
+base_atributos <- base_atributos |> 
+  left_join(equip_esportivos, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
+
+base_atributos |> 
+  distinct(ibge_aloc, equipamentos_esportivos) |> 
+  summarise(média = mean(equipamentos_esportivos))
+```
+
+A média de equipamentos esportivos por 100 mil habitantes é de 11,9. Ao desagregar por churn, é possível identificar que a mediana é maior entre os que migraram conforme boxplot abaixo.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = equipamentos_esportivos,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Equipamentos por 100 mil habitantes") +
+  ylab("Equipamentos esportivos")
+
+b <- base_atributos |> 
+  ggplot(aes(x = equipamentos_esportivos)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Equipamentos por 100 mil habitantes")
+
+a + b
+```
+
+Em termos de média, assim como na mediana, é maior entre os que migraram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = round(mean(equipamentos_esportivos),2)) |> 
+  DT::datatable()
+```
+
+O município com o maior número de equipamentos esportivos por 100 mil habitantes é Conceição de Ipanema em Minas Gerais.
+
+```{r}
+base_atributos |> 
+  filter(equipamentos_esportivos == max(equipamentos_esportivos, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_esportivos) |> 
+  DT::datatable()
 ```
 
 #### 1.4.5.3 Centros Culturais, casas e espaços de cultura
@@ -1876,14 +2128,55 @@ Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades �
 
 ```{r}
 equip_culturais <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
-  select(id, Município, equpamentos_culturais) |> 
+  select(id, Município, equipamentos_culturais) |> 
   mutate(id = substr(id, 1, 6))
 
-base_tratada27 <- base_tratada26 |> 
-  left_join(equip_culturais, by = c("codufmun" = "id")) |> 
+base_atributos <- base_atributos |> 
+  left_join(equip_culturais, by = c("ibge_aloc" = "id")) |> 
   select(-Município)
 
-base_tratada28 <- base_tratada27 |> 
-  mutate(anos_atuacao_mesmo_municipio = ifelse(is.na(anos_atuacao), 0, anos_atuacao)) |> 
-  select(-anos_atuacao)
+base_atributos |> 
+  distinct(ibge_aloc, equipamentos_culturais) |> 
+  summarise(média = mean(equipamentos_culturais))
+```
+
+A média de equipamentos culturais por 100 mil habitantes é de 13,5. Ao desagregar por churn, a mediana é maior entre os que migraram conforme boxplot abaixo.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = equipamentos_culturais,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Equipamentos por 100 mil habitantes") +
+  ylab("Equipamentos esportivos")
+
+b <- base_atributos |> 
+  distinct(ibge_aloc, equipamentos_culturais) |> 
+  ggplot(aes(x = equipamentos_culturais)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Equipamentos por 100 mil habitantes")
+
+a + b
+```
+
+Em termos de média, assim como na mediana, é maior entre os que migraram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = round(mean(equipamentos_culturais),2)) |> 
+  DT::datatable()
+```
+
+O município com o maior número de equipamentos culturais por 100 mil habitantes é Água Limpa em Goiás.
+
+```{r}
+base_atributos |> 
+  filter(equipamentos_culturais == max(equipamentos_culturais, na.rm = TRUE)) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_culturais) |> 
+  DT::datatable()
 ```
