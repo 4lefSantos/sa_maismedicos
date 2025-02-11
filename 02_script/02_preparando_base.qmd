@@ -860,6 +860,12 @@ anos_formado <-
   select(cpf_prof, anos_formacao)
 
 
+base_atributos <- 
+  base_atributos |> 
+  left_join(anos_formado, 
+            by = c("cpf_prof"))
+
+
 print(paste("Média:", round(mean(anos_formado$anos_formacao),2)))
 print(paste("Mediana: ", round(median(anos_formado$anos_formacao),2)))
 ```
@@ -876,26 +882,16 @@ a <- base_atributos |>
   coord_flip() +
   theme(legend.position = "top") +
   theme(axis.text.x = element_blank()) +
-  xlab("Nota IDEB") +
-  ylab("Nota IDEB - Anos Iniciais")
+  xlab("Anos") +
+  ylab("Anos de formação")
 
 b <- base_atributos |>
   ggplot(aes(x= anos_formacao)) + 
   geom_histogram() +
-  xlab("Nota IDEB - Anos Iniciais") +
+  xlab("Anos de formação") +
   ylab("Frequência")
 
 a + b
-```
-
-Juntando a base.
-
-```{r}
-
-base_atributos <- 
-  base_atributos |> 
-  left_join(anos_formado, 
-            by = c("cpf_prof"))
 ```
 
 A tabela abaixo quantifica a diferença dos anos de formação por churn.
@@ -905,13 +901,23 @@ A tabela abaixo quantifica a diferença dos anos de formação por churn.
 base_atributos |> 
   group_by(churn) |> 
   summarise(média_anos_formacao = round(mean(anos_formacao),2),
-            sd = sd(anos_formacao)) |> 
+            sd = round(sd(anos_formacao),2)) |> 
   DT::datatable()
 ```
 
 ## 1.3. Atributos a nível estabelecimento
 
 Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos que receberam médicos do programa, tais como, número de leitos e profissionais.
+
+Mas antes de prosseguirmos, adicionaremos a variável `cnes` que identifica o estabelecimento localizada no dataframe `temp2` , isso será importante para agregar as variáveis dessa seção.
+
+```{r}
+codigo_cnes <- temp2 |> 
+  distinct(CPF_PROF, CNES)
+
+base_atributos <- base_atributos |> 
+  left_join(codigo_cnes, by = c("cpf_prof" = "CPF_PROF"))
+```
 
 ### 1.3.1 Número de leitos das unidades
 
@@ -987,14 +993,67 @@ Acessando dados de leitos das unidades de APS as quais os indivíduos foram aloc
 leitos_unidades <- 
   leitos |> 
   mutate(Ano = as.numeric(Ano)) |> 
-  filter(CNES %in% temp2$CNES) |> 
+  filter(CNES %in% base_atributos$CNES) |> 
   filter(Ano == 2019) |> 
   select(CNES, leitos_instalacao_fisica_urgencia)
   
 
-base_atributoT <- leitos_unidades |>
+base_atributos <- leitos_unidades |>
   left_join(base_atributos, 
-            by = c("CNES" = "cnes"))
+            by = c("CNES" = "CNES"))
+
+base_atributos |> 
+  distinct(CNES, leitos_instalacao_fisica_urgencia) |> 
+  summarise(média = round(mean(leitos_instalacao_fisica_urgencia),2))
+```
+
+A média de leitos de instalação física de urgência dos estabelecimentos que receberam médicos do programa é de 5,95 e ao desagregar por churn, não há uma diferença visualmente clara entre daqueles que permaneceram e migraram.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = leitos_instalacao_fisica_urgencia,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Número de leitos") +
+  ylab("Leitos de instalação física de urgência")
+
+b <- base_atributos |>
+  distinct(CNES, leitos_instalacao_fisica_urgencia) |> 
+  ggplot(aes(x= leitos_instalacao_fisica_urgencia)) + 
+  geom_histogram() +
+  xlab("Leitos de instalação física de urgência") +
+  ylab("Frequência")
+
+a + b
+```
+
+Em termos de média, a diferença também parece não ser relevante.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(leitos_instalacao_fisica_urgencia))
+```
+
+-   O estabelecimento de saúde com o maior número de leitos fica em Mazagao no Amapá com 25 leitos.
+
+```{r}
+base_atributos |> 
+  filter(leitos_instalacao_fisica_urgencia == max(leitos_instalacao_fisica_urgencia)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, leitos_instalacao_fisica_urgencia) |> 
+  DT::datatable()
+```
+
+-   O estabelecimento de saúde com o menor número de leitos fica no Distrito Sanitário Especial Indigena Médio Perus no Amazonas com 0 leitos.
+
+```{r}
+base_atributos |> 
+  filter(leitos_instalacao_fisica_urgencia == min(leitos_instalacao_fisica_urgencia)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, leitos_instalacao_fisica_urgencia) |> 
+  DT::datatable()
 ```
 
 ### 1.3.2 Número de profissionais das unidades
@@ -1062,8 +1121,6 @@ GROUP BY
         categoria
 ```
 
-asfd
-
 ```{r}
 
 # codigo para acessar dados de datalake proprio 
@@ -1095,7 +1152,7 @@ equipe_saude <- sqlQuery(channel,
 
 ```
 
-asdf
+A seguir são filtrados apenas as equipes dos estabelecimentos presentes na base de dados.
 
 ```{r}
 
@@ -1117,7 +1174,7 @@ equipe_saude2 <-
   
 equipe_saude3 <- 
     equipe_saude2 |> 
-    filter(CNES %in% base_tratada10$cnes) |> 
+    filter(CNES %in% base_atributos$CNES) |> 
     group_by(CNES, categoria) |> 
     summarise(FTE40 = mean(FTE40)) |> 
     ungroup() |> 
@@ -1127,90 +1184,228 @@ equipe_saude3 <-
 
 ```
 
-base
+Juntando a base.
 
 ```{r}
 
-base_tratada12 <- 
-  base_tratada11 |> 
+base_atributos <- 
+  base_atributos |> 
     left_join(equipe_saude3,
-              by = c("cnes"="CNES"))
-  
-  
+              by = c("CNES"="CNES"))
 ```
 
-### 1.3.2 Número de equipamentos das unidade
-
-``` sql
-WITH 
-      tratamento_inicial
-  AS(
-      SELECT 
-          CONCAT(a.TIPEQUIP, a.CODEQUIP) AS id_equipamento,
-          a.CNES, 
-          a.CODUFMUN,
-          a.TPGESTAO, 
-          a.TP_UNID, 
-          CAST(a.QT_USO AS INT) AS QT_USO, 
-          a.COMPETEN, 
-          a.uf,
-          b.no_grupo, 
-          b.no_equip
-      FROM Dados.CNES.EQ a
-          LEFT JOIN Dados.cnes."tp_equip.parquet" b
-          ON id_equipamento = CAST(id_equip AS CHARACTER)
-      WHERE SUBSTR(COMPETEN, 5, 2) = '01' AND
-            CAST(SUBSTR(COMPETEN, 1, 4) AS INTEGER) >= 2019
-  )
-  
-  SELECT CNES,
-         ID_EQUIPAMENTO, 
-         NO_EQUIP, 
-         NO_GRUPO,
-         AVG(QT_USO) AS QT_EQUIPAMENTO_USO
-  FROM tratamento_inicial
-  GROUP BY CNES,
-        ID_EQUIPAMENTO, 
-        NO_EQUIP,
-        NO_GRUPO
-  ORDER BY qt_equipamento_uso DESC
-```
+A seguir, iremos analisar os **agentes de saúde**.
 
 ```{r}
-# codigo para acessar dados de datalake proprio 
-
-dremio_host <- Sys.getenv("endereco")
-dremio_port <- Sys.getenv("port")
-dremio_uid <- Sys.getenv("uid")
-dremio_pwd <- Sys.getenv("datalake")
-
-
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
-                                     AUTHENTICATIONTYPE=Basic Authentication;
-                                     CONNECTIONTYPE=Direct", 
-                         dremio_host, 
-                         dremio_port, 
-                         dremio_uid, 
-                         dremio_pwd))
-
-query <- 'SELECT * FROM "@alef_santos"."pmmb_equipamentos"'
-
-equipamentos <- sqlQuery(channel, 
-                         query,
-                         as.is = TRUE)
+base_atributos |> 
+  distinct(CNES, agente_saude) |> 
+  summarise(média = mean(agente_saude))
 ```
+
+A média de agentes comunitários de saúde nos estabelecimentos que receberam médicos do programa é de 8,3. Ao desagregar por churn, observamos uma mediana maior entre os que permaneceram.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = agente_saude,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Número de agentes") +
+  ylab("Agentes Comunitários de Saúde")
+
+b <- base_atributos |>
+  distinct(CNES, agente_saude) |> 
+  ggplot(aes(x= agente_saude)) + 
+  geom_histogram() +
+  xlab("Agentes Comunitários de Saúde") +
+  ylab("Frequência")
+
+a + b
+```
+
+Em termos de média, têm-se que o número de agentes é maior nos estabelecimentos em que os profissionais permaneceram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(agente_saude))
+```
+
+-   O estabelecimento UNIDADE DE SAUDE DA FAMILIA VILA ROSALI tem maior número de agentes fica em São João de Mereti no Rio de Janeiro.
+
+```{r}
+base_atributos |> 
+  filter(agente_saude == max(agente_saude)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, agente_saude, churn) |> 
+  DT::datatable()
+```
+
+A seguir, os **técnicos e auxiliares de enfermagem**.
+
+```{r}
+base_atributos |> 
+  distinct(CNES, tec_aux_enf) |> 
+  summarise(média = mean(tec_aux_enf))
+```
+
+A média de técnicos e auxiliares de enfermagem nos estabelecimentos é de 2,9. Ao desagregar por churn, pelo boxplot abaixo, visualmente não é possível observar uma diferença clara.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = tec_aux_enf,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Número de ") +
+  ylab("Técnicos e auxiliares de enfermagem")
+
+b <- base_atributos |>
+  distinct(CNES, tec_aux_enf) |> 
+  ggplot(aes(x= tec_aux_enf)) + 
+  geom_histogram() +
+  xlab("Técnicos e auxiliares de enfermagem") +
+  ylab("Frequência")
+
+a + b
+```
+
+Em termos de média a diferença é mais clara, os que permaneceram atuavam em estabelecimentos com uma média de técnicos e auxiliares de enfermagem maior em relação aos que migram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(tec_aux_enf))
+```
+
+-   O estabelecimento POSTO MEDICO SANITARIO VILA SAO JOAO é o que possui o maior número de técnicos e auxiliares de enfermagem, também localizado em São João de Meriti no Rio de Janeiro que abriga o estabelecimento com o maior número de agentes de saúde.
 
 ```{r}
 
+base_atributos |> 
+  filter(tec_aux_enf == max(tec_aux_enf)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, tec_aux_enf, churn) |> 
+  DT::datatable()
 
+```
 
-teste <- equipamentos |> 
-  filter(is.na(NO_GRUPO)) |> 
-  distinct(ID_EQUIPAMENTO)
+-   O estabelecimento UNIDADE BASICA DE SAUDE DO DISTRITO DO CAARAPA é o que possui o menor número de técnicos e auxiliares de enfermagem localizado no munícipio Laguna Carapa em Mato Grosso do Sul.
+
+```{r}
+base_atributos |> 
+  filter(tec_aux_enf == min(tec_aux_enf)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, tec_aux_enf, churn) |> 
+  DT::datatable()
+```
+
+A seguir, os **enfermeiros**.
+
+```{r}
+
+base_atributos |> 
+  distinct(CNES, enfermeiro) |> 
+  summarise(média = mean(enfermeiro))
+
+```
+
+A média de enfermeiros nos estabelecimentos é de 1,7. Ao desagregar por churn não é possível observar uma diferença clara conforme boxplot abaixo.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = enfermeiro,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Número de enfermeiros") +
+  ylab("Enfermeiros")
+
+b <- base_atributos |>
+  distinct(CNES, enfermeiro) |> 
+  ggplot(aes(x= enfermeiro)) + 
+  geom_histogram() +
+  xlab("Enfermeiros") +
+  ylab("Frequência")
+
+a + b
+```
+
+Em termos de média, os estabelecimentos em que os profissionais permanecem tem uma média maior de enfermeiros em relação aos que migram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(enfermeiro))
+```
+
+-   O estabelecimento POSTO MEDICO SANITARIO VILA SAO JOAO além de ter o maior número de agentes comunitários de saúde, também possui o maior número de enfermeiro entre os estabelecimentos que receberam médicos do programa.
+
+```{r}
+base_atributos |> 
+  filter(enfermeiro == max(enfermeiro)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, enfermeiro, churn) |> 
+  DT::datatable()
+```
+
+-   Em relação aos que possui o menor número de enfermeiros, são três estabelecimentos. Entre elas, a UNIDADE BASICA DE SAUDE DO DISTRITO DO CAARAPA de Laguna de Carapa que também possui o menor número de técnico e auxiliares de enfermagem.
+
+```{r}
+base_atributos |> 
+  filter(enfermeiro == min(enfermeiro)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, enfermeiro, churn) |> 
+  DT::datatable()
+```
+
+A seguir, os **dentistas**.
+
+```{r}
+base_atributos |> 
+  distinct(CNES, dentista) |> 
+  summarise(média = mean(dentista))
+```
+
+A média é de 1,1 dentistas nos estabelecimentos que receberam médicos do programa. Ao desagregar por churn no boxplot abaixo não é possível ver diferença em relação a mediana.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = dentista,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_blank()) +
+  xlab("Número de dentistas") +
+  ylab("Cirurgiões-dentistas")
+
+b <- base_atributos |>
+  distinct(CNES, dentista) |> 
+  ggplot(aes(x= dentista)) + 
+  geom_histogram() +
+  xlab("Cirurgiões-dentista") +
+  ylab("Frequência")
+
+a + b
+```
+
+E em termos de média também não há diferença significativa.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(dentista))
+```
+
+-   O estabelecimento UNIDADE DE SAUDE MARIA ANIDEJE possui o maior número de cirurgiões-dentistas localizado em Cambe no Paraná.
+
+```{r}
+base_atributos |> 
+  filter(dentista == max(dentista)) |> 
+  select(nome, uf_destino, municipio_destino, CNES, dentista, churn) |> 
+  DT::datatable()
 ```
 
 ## 1.4. Atributos a nível município
@@ -1278,21 +1473,21 @@ base_atributos |>
   coord_flip()
 ```
 
-Observa-se que o município com a maior população é São Gonçalo do Rio de Janeiro com 896.744 habitantes, e que recebeu 3 médicos do programa.
+-   Observa-se que o município com a maior população é São Gonçalo do Rio de Janeiro com 896.744 habitantes, e que recebeu 3 médicos do programa.
 
 ```{r}
 base_atributos |> 
   filter(populacao == max(populacao)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, porte) |> 
+  select(nome, uf_destino, municipio_destino, populacao, porte, churn) |> 
   DT::datatable()
 ```
 
-Observa-se que o município com a menor população é Nova Aliança do Ivai do Paraná com 1.323 habitantes, e que recebeu apenas um médico do programa.
+-   Observa-se que o município com a menor população é Nova Aliança do Ivai do Paraná com 1.323 habitantes, e que recebeu apenas um médico do programa.
 
 ```{r}
 base_atributos |> 
   filter(populacao == min(populacao)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, porte) |> 
+  select(nome, uf_destino, municipio_destino, populacao, porte, churn) |> 
   DT::datatable()
 ```
 
@@ -1384,21 +1579,21 @@ base_atributos |>
   summarise(média = mean(pib_percapita))
 ```
 
-Abaixo é possível identificar o município com o maior PIB per capita que é de R\$ 353.505,22 com uma população de 8.142 habitantes.
+-   Abaixo é possível identificar o município com o maior PIB per capita que é de R\$ 353.505,22 com uma população de 8.142 habitantes.
 
 ```{r}
 base_atributos |> 
   filter(pib_percapita == max(pib_percapita)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, churn) |> 
   DT::datatable()
 ```
 
-Abaixo é possível identificar o município com o menor PIB per capita que é de R\$ 4.575,16 com uma população de 17.432 habitantes.
+-   Abaixo é possível identificar o município com o menor PIB per capita que é de R\$ 4.575,16 com uma população de 17.432 habitantes.
 
 ```{r}
 base_atributos |> 
   filter(pib_percapita == min(pib_percapita)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, churn) |> 
   DT::datatable()
 ```
 
@@ -1465,21 +1660,21 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com a maior taxa de ocupação é Sapezal do Mato Grosso com 37,78%.
+-   O município com a maior taxa de ocupação é Sapezal do Mato Grosso com 37,78%.
 
 ```{r}
 base_atributos |> 
   filter(tx_pop_ocupada == max(tx_pop_ocupada)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, tx_pop_ocupada) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, tx_pop_ocupada, churn) |> 
   DT::datatable()
 ```
 
-O município com a menor taxa de ocupação é Ipixuna do Amazonas com 1,41%.
+-   O município com a menor taxa de ocupação é Ipixuna do Amazonas com 1,41%.
 
 ```{r}
 base_atributos |> 
   filter(tx_pop_ocupada == min(tx_pop_ocupada)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, tx_pop_ocupada) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, tx_pop_ocupada, churn) |> 
   DT::datatable()
 ```
 
@@ -1572,22 +1767,22 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com a maior taxa de cobertura de saúde é Paraubebas do Pará com 90%.
+-   O município com a maior taxa de cobertura de saúde é Paraubebas do Pará com 90%.
 
 ```{r}
 base_atributos |> 
   filter(cobertura_saude == max(cobertura_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude, churn) |> 
   DT::datatable()
 ```
 
-O município com a menor taxa de cobertura de saúde é Santa Isabel do Rio Negro com 0,13%.
+-   O município com a menor taxa de cobertura de saúde é Santa Isabel do Rio Negro com 0,13%.
 
 ```{r}
 
 base_atributos |> 
   filter(cobertura_saude == min(cobertura_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude, churn) |> 
   DT::datatable()
 
 ```
@@ -1676,12 +1871,12 @@ base_atributos |>
   DT::datatable()
 ```
 
-A cidade com maior número de vagas de medicina foi Cajazeiras da Paraiba com 22 por mil habitantes.
+-   A cidade com maior número de vagas de medicina foi Cajazeiras da Paraiba com 22 por mil habitantes.
 
 ```{r}
 base_atributos |> 
   filter(vagas_medicina_milhab == max(vagas_medicina_milhab)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, vagas_medicina_milhab) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, vagas_medicina_milhab, churn) |> 
   DT::datatable()
 ```
 
@@ -1736,21 +1931,21 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com o maior orçamento de saúde per capita é Santa Margarida do Sul do Rio Grande do Sul com R\$ 5.561,87.
+-   O município com o maior orçamento de saúde per capita é Santa Margarida do Sul do Rio Grande do Sul com R\$ 5.561,87.
 
 ```{r}
 base_atributos |> 
   filter(orcamento_saude == max(orcamento_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude, churn) |> 
   DT::datatable()
 ```
 
-O município com o menor orçamento de saúde per capita é Igarape-ACU do Pará com RS 202,40.
+-   O município com o menor orçamento de saúde per capita é Igarape-ACU do Pará com RS 202,40.
 
 ```{r}
 base_atributos |> 
   filter(orcamento_saude == min(orcamento_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude, churn) |> 
   DT::datatable()
 ```
 
@@ -1856,12 +2051,12 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com maior índice de homicídio é Jussara da Bahia e que recebeu dois médicos do programa.
+-   O município com maior índice de homicídio é Jussara da Bahia e que recebeu dois médicos do programa.
 
 ```{r}
 base_atributos |> 
   filter(taxa_homicidio == max(taxa_homicidio)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, taxa_homicidio) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, taxa_homicidio, churn) |> 
   DT::datatable()
 ```
 
@@ -1918,21 +2113,21 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com a maior nota IDEB dos anos iniciais é Mucambo no Ceará.
+-   O município com a maior nota IDEB dos anos iniciais é Mucambo no Ceará.
 
 ```{r}
 base_atributos |> 
   filter(ideb_anosiniciais == max(ideb_anosiniciais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais, churn) |> 
   DT::datatable()
 ```
 
-O município com a menor nota IDEB dos anos iniciais é Pedrinhas em Sergipe.
+-   O município com a menor nota IDEB dos anos iniciais é Pedrinhas em Sergipe.
 
 ```{r}
 base_atributos |> 
   filter(ideb_anosiniciais == min(ideb_anosiniciais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais, churn) |> 
   DT::datatable()
 ```
 
@@ -1987,21 +2182,21 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com a maior nota Ideb dos anos finais é Pires Ferreira no Ceará.
+-   O município com a maior nota Ideb dos anos finais é Pires Ferreira no Ceará.
 
 ```{r}
 base_atributos |> 
   filter(ideb_anosfinais == max(ideb_anosfinais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais, churn) |> 
   DT::datatable()
 ```
 
-O município com a menor nota Ideb dos anos finais é Pedro Osório no Rio Grande do Sul.
+-   O município com a menor nota Ideb dos anos finais é Pedro Osório no Rio Grande do Sul.
 
 ```{r}
 base_atributos |> 
   filter(ideb_anosfinais == min(ideb_anosfinais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais, churn) |> 
   DT::datatable()
 ```
 
@@ -2057,12 +2252,12 @@ base_atributos |>
   DT::datatable()
 ```
 
-O municípios com o maior investimento per capita em infraestrutura é Itanagra da Bahia.
+**O municípios com o maior investimento per capita em infraestrutura é Itanagra da Bahia.**
 
 ```{r}
 base_atributos |> 
   filter(investimento_infraestrutura == max(investimento_infraestrutura, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, investimento_infraestrutura) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, investimento_infraestrutura, churn) |> 
   DT::datatable()
 ```
 
@@ -2115,12 +2310,12 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com o maior número de equipamentos esportivos por 100 mil habitantes é Conceição de Ipanema em Minas Gerais.
+-   O município com o maior número de equipamentos esportivos por 100 mil habitantes é Conceição de Ipanema em Minas Gerais.
 
 ```{r}
 base_atributos |> 
   filter(equipamentos_esportivos == max(equipamentos_esportivos, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_esportivos) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_esportivos, churn) |> 
   DT::datatable()
 ```
 
@@ -2174,11 +2369,11 @@ base_atributos |>
   DT::datatable()
 ```
 
-O município com o maior número de equipamentos culturais por 100 mil habitantes é Água Limpa em Goiás.
+-   O município com o maior número de equipamentos culturais por 100 mil habitantes é Água Limpa em Goiás.
 
 ```{r}
 base_atributos |> 
   filter(equipamentos_culturais == max(equipamentos_culturais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_culturais) |> 
+  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_culturais, churn) |> 
   DT::datatable()
 ```
