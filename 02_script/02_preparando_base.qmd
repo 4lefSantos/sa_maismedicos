@@ -792,8 +792,6 @@ base_atributos |>
 
 ```
 
-# ALEF!!!! CONTINUAR POR AQUI
-
 ### 1.2.6 Renovação
 
 A próxima etapa será identificar os profissionais que tiveram a permanência no programa prorrogada por mais um ano. Infelizmente, como a única informação nos resultados de prorrogação que identifica o médico é o nome, realizaremos o left join utilizando essa variável.
@@ -811,18 +809,17 @@ base_atributos <-
                              "NÃO", 
                              Prorrogado))
 
-
 base_atributos |>
   group_by(Prorrogado) |> 
   summarise(quantidade = n()) |> 
-  mutate(percentual = round(quantidade/sum(quantidade)*100,2)) |> 
+  mutate(percentual = round(quantidade/sum(quantidade)* 100,2)) |> 
   DT::datatable()
 
 ```
 
 Dos 1460 médicos, 623 (42,64%) tiveram sua adesão prorrogada por mais um ano e 837 (57,33%) não prorrogaram.
 
-Abaixo visualizaremos a informação desagregada por churn.
+Abaixo visualizaremos a informação desagregada por churn. A prorrogação foi superior entre aqueles que permaneceram.
 
 ```{r}
 base_atributos |> 
@@ -838,7 +835,7 @@ base_atributos |>
 
 ### 1.2.7. Tempo formado
 
-O próximo passo é verificar quanto tempo a pessoa já está formada.
+Este atributo é mensurado a partir de dados que estão na próprio resultado de convocação de profissionais.
 
 ```{r}
 
@@ -883,26 +880,36 @@ a <- base_atributos |>
   theme(legend.position = "top") +
   theme(axis.text.x = element_blank()) +
   xlab("Anos") +
-  ylab("Anos de formação")
+  ylab("Anos de formação") + 
+  theme_minimal()
 
 b <- base_atributos |>
-  ggplot(aes(x= anos_formacao)) + 
+  ggplot(aes(x= anos_formacao,
+             fill = churn)) + 
   geom_histogram() +
   xlab("Anos de formação") +
-  ylab("Frequência")
+  ylab("Frequência") + 
+  theme_minimal()
 
 a + b
 ```
 
-A tabela abaixo quantifica a diferença dos anos de formação por churn.
+A tabela abaixo quantifica a diferença dos anos de formação por churn. Observa-se que a média, mediana e desvio-padrão entre os que migraram é menor.
 
 ```{r}
 
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média_anos_formacao = round(mean(anos_formacao),2),
+  summarise(media = round(mean(anos_formacao),2),
+            mediana = round(median(anos_formacao),2),
             sd = round(sd(anos_formacao),2)) |> 
   DT::datatable()
+```
+
+```{r}
+
+wilcox.test(anos_formacao ~ churn, data = base_atributos)
+
 ```
 
 ## 1.3. Atributos a nível estabelecimento
@@ -912,11 +919,14 @@ Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos q
 Mas antes de prosseguirmos, adicionaremos a variável `cnes` que identifica o estabelecimento localizada no dataframe `temp2` , isso será importante para agregar as variáveis dessa seção.
 
 ```{r}
-codigo_cnes <- temp2 |> 
-  distinct(CPF_PROF, CNES)
 
-base_atributos <- base_atributos |> 
-  left_join(codigo_cnes, by = c("cpf_prof" = "CPF_PROF"))
+codigo_cnes <- temp2 |> 
+  filter(HORA_AMB > 30) |> 
+  distinct(CPF_PROF, NOMEPROF, CNES)
+
+base_atributos_t <- base_atributos |> 
+  left_join(codigo_cnes, 
+            by = c("cpf_prof" = "CPF_PROF"))
 ```
 
 ### 1.3.1 Número de leitos das unidades
@@ -1420,7 +1430,7 @@ Abaixo, conforme estrutura mencionada, as variáveis que indicam nível de ativi
 
 A partir de dados do Censo 2022 do IBGE identificaremos a população dos municipios, e classificaremos por porte de acordo com a população.
 
-O porte dos município é classificado de acordo com sua população:
+O porte dos município, conforme o IBGE, é classificado de acordo com sua população:
 
 **Pequeno Porte I**: Até 20.000 habitantes.\
 **Pequeno Porte II**: Entre 20.000 e 50.000 habitantes.\
@@ -1428,8 +1438,11 @@ O porte dos município é classificado de acordo com sua população:
 **Grande Porte**: Entre 100.000 e 900.000 habitantes.\
 **Metrópole**: Mais de 900.000 habitantes.
 
+Observa-se que a maioria dos médicos foi alocada em cidades de até 50 mil habitantes, visto que PP I e PP II representam aproximadamente 65% dos destinos.
+
 ```{r}
 #Carregando a base de contigente populacional
+
 pop_mun <- 
   read_excel("~/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
   mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
@@ -1458,9 +1471,10 @@ base_atributos |>
   mutate(percentual = round(quantidade/sum(quantidade)*100,2)) |> 
   arrange(desc(percentual)) |> 
   DT::datatable()
+
 ```
 
-Observa-se que a maioria dos médicos foram alocados em cidades de até 50 mil habitantes, no entanto a permanência dos profissionais é maior nas cidades com mais de 100 mil habitantes, conforme pode ser visto abaixo.
+No entanto, a permanência dos profissionais é maior nas cidades com mais de 100 mil habitantes, conforme pode ser visto abaixo.
 
 ```{r}
 
@@ -1468,9 +1482,13 @@ base_atributos |>
   group_by(churn, porte) |> 
   count() |> 
   ungroup() |> 
-  ggplot(aes(x = reorder(porte, -n, sum), y = n, fill = churn)) +
+  ggplot(aes(x = reorder(porte, -n, sum), 
+             y = n, fill = churn)) +
   geom_col(position = "fill") + 
-  coord_flip()
+  coord_flip() + 
+  theme_minimal() + 
+  xlab("Tipo de município") + 
+  ylab("%")
 ```
 
 -   Observa-se que o município com a maior população é São Gonçalo do Rio de Janeiro com 896.744 habitantes, e que recebeu 3 médicos do programa.
@@ -1478,7 +1496,11 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(populacao == max(populacao)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, porte, churn) |> 
+  select(cns, uf_destino, 
+         municipio_destino, 
+         populacao, 
+         porte, 
+         churn) |> 
   DT::datatable()
 ```
 
@@ -1487,11 +1509,18 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(populacao == min(populacao)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, porte, churn) |> 
+  select(cns, 
+         uf_destino, 
+         municipio_destino, 
+         populacao, 
+         porte, 
+         churn) |> 
   DT::datatable()
 ```
 
 #### 1.4.1.2 PIB per capita
+
+O próximo atributo a nível município é o PIB per capita da localidade. Para isso foram acessados dados do IBGE.
 
 ``` sql
 SELECT codigo_municipio, 
@@ -1530,6 +1559,28 @@ pib_percapita <- sqlQuery(channel, query,
                      as.is = TRUE)
 ```
 
+#### 1.4.1.2.1 Variação de PIB per capita entre anos
+
+O código abaixo é usado para verificar a variação do PIB per capita entre os anos de 2010 e 2019.
+
+```{r}
+
+var_pib <- 
+  pib_percapita |> 
+  filter(ano == '2019' | ano == '2010') |> 
+  spread(key = ano, value = pib_percapita) |> 
+  rename(ppc_2010 = `2010`, ppc_2019 = `2019`) |> 
+  mutate(variacao = (ppc_2019 * 100 / ppc_2010) - 100) |> 
+  mutate(codigo_municipio = substr(codigo_municipio, 1, 6))
+
+```
+
+# ALEF JUNTAR ESTA BASE AOS ATRIBUTOS
+
+#### 1.4.1.2.2 PIB per capita
+
+Esta seção acessa os dados do PIB per capita do ano de 2019 como referência.
+
 ```{r}
 
 pib_percapita <- pib_percapita |> 
@@ -1549,7 +1600,7 @@ base_atributos |>
 A média do PIB per capita dos municípios é de R\$ 18.049,82. Ao desagregar por churn, é possível observar uma mediana maior entre os que permanecem.
 
 ```{r}
-a <- base_atributos |> 
+c <- base_atributos |> 
   ggplot(aes(x = pib_percapita,
              fill = churn)) +
   geom_boxplot() + 
@@ -1560,7 +1611,7 @@ a <- base_atributos |>
   ylab("PIB per capita") +
   scale_x_continuous(labels = scales::label_comma())
 
-b <- base_atributos |>
+d <- base_atributos |>
   distinct(ibge_aloc, pib_percapita) |> 
   ggplot(aes(x= pib_percapita)) + 
   geom_histogram() +
@@ -1568,7 +1619,7 @@ b <- base_atributos |>
   ylab("Frequência") +
   scale_x_continuous(labels = scales::label_comma())
 
-a + b
+c + d
 ```
 
 Em termos de média, assim como na mediana, é maior entre os que permaneceram.
@@ -1576,7 +1627,9 @@ Em termos de média, assim como na mediana, é maior entre os que permaneceram.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(pib_percapita))
+  summarise(média = mean(pib_percapita),
+            mediana = median(pib_percapita),
+            sd = sd(pib_percapita))
 ```
 
 -   Abaixo é possível identificar o município com o maior PIB per capita que é de R\$ 353.505,22 com uma população de 8.142 habitantes.
@@ -1584,7 +1637,11 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(pib_percapita == max(pib_percapita)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, churn) |> 
+  select(cns, uf_destino, 
+         municipio_destino, 
+         populacao, 
+         pib_percapita, 
+         churn) |> 
   DT::datatable()
 ```
 
@@ -1593,7 +1650,11 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(pib_percapita == min(pib_percapita)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, churn) |> 
+  select(cns, uf_destino, 
+         municipio_destino, 
+         populacao, 
+         pib_percapita, 
+         churn) |> 
   DT::datatable()
 ```
 
@@ -1604,9 +1665,11 @@ Os dados da população ocupada foram coletados da Estatísticas do Cadastro Cen
 E calculamos o percentual da população ocupada com os dados do Censo 2022.
 
 ```{r}
-pop_ocupada_mun <- read_excel("C:/Users/alefs/OneDrive/Documentos/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
+
+pop_ocupada_mun <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
   select(-municipio) |> 
-  mutate(across(-cod_ibge, as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para "character"
+  mutate(across(-cod_ibge, 
+                as.numeric)) |>  # Converte todas as colunas, exceto cod_ibge, para "character"
   pivot_longer(
     cols = -cod_ibge,
     names_to = "ano",
@@ -1631,7 +1694,7 @@ base_atributos |>
 A média das taxas de ocupação dos municípios é de 11,7%, sendo que ela é maior nos municípios em que os médicos permanecem conforme boxplot abaixo.
 
 ```{r}
-a <- base_atributos |> 
+e <- base_atributos |> 
   ggplot(aes(x = tx_pop_ocupada,
              fill = churn)) +
   geom_boxplot() + 
@@ -1641,14 +1704,14 @@ a <- base_atributos |>
   ylab("Taxa de ocupação") +
   theme(axis.text.x = element_blank())
 
-b <- base_atributos |>  
+f <- base_atributos |>  
   distinct(ibge_aloc, tx_pop_ocupada) |> 
   ggplot(aes(x = tx_pop_ocupada)) +   
   geom_histogram() +    
   xlab("Taxa de ocupação") +   
   ylab("Frequência")  
 
-a + b
+e + f
 ```
 
 Abaixo pode-se olhar a diferença em termos de média.
@@ -1656,7 +1719,9 @@ Abaixo pode-se olhar a diferença em termos de média.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(taxa_ocupacao = round(mean(tx_pop_ocupada)*100,2)) |> 
+  summarise(media = round(mean(tx_pop_ocupada)*100,2),
+            mediana = round(median(tx_pop_ocupada)*100,2),
+            sd = round(sd(tx_pop_ocupada)*100,2)) |> 
   DT::datatable()
 ```
 
@@ -1665,7 +1730,9 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(tx_pop_ocupada == max(tx_pop_ocupada)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, tx_pop_ocupada, churn) |> 
+  select(cns, uf_destino, municipio_destino, 
+         populacao, pib_percapita, tx_pop_ocupada, 
+         churn) |> 
   DT::datatable()
 ```
 
@@ -1674,7 +1741,9 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(tx_pop_ocupada == min(tx_pop_ocupada)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, tx_pop_ocupada, churn) |> 
+  select(cns, uf_destino, municipio_destino, 
+         populacao, pib_percapita, tx_pop_ocupada, 
+         churn) |> 
   DT::datatable()
 ```
 
@@ -1684,7 +1753,7 @@ A seguir, as variáveis relacionadas a qualidade e acesso à saúde.
 
 #### 1.4.2.1 Cobertura de plano de saúde
 
-A partir dos dados da Agência Nacional de Saúde, agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
+A partir dos dados da Agência Nacional de Saúde (ANS), agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
 
 ``` sql
 
@@ -1729,7 +1798,8 @@ cobertura_saude <- cobertura_saude |>
   mutate(cobertura_saude = as.numeric(cobertura_saude))
 
 base_atributos <- base_atributos |> 
-  left_join(cobertura_saude, by = c("ibge_aloc" = "cod_ibge"))
+  left_join(cobertura_saude, 
+            by = c("ibge_aloc" = "cod_ibge"))
 
 base_atributos |> 
   distinct(ibge_aloc, cobertura_saude) |> 
@@ -1739,7 +1809,7 @@ base_atributos |>
 A média de cobertura de saúde dos municípios é de 8,8%, e quando desagregado por churn é maior entre os municípios com indivíduos que permaneceram conforme pode ser visto abaixo.
 
 ```{r}
-a <- base_atributos |> 
+f <- base_atributos |> 
       ggplot(aes(x = cobertura_saude,
                  fill = churn)) +
       geom_boxplot() +
@@ -1749,13 +1819,13 @@ a <- base_atributos |>
       ylab("Cobertura de saúde") +
       xlab("Percentual")
 
-b <- base_atributos |> 
+g <- base_atributos |> 
   ggplot(aes(x = cobertura_saude)) +
   geom_histogram() +
     ylab("Frequência") + 
   xlab("Cobertura de saúde")
 
-a + b
+f + g
 ```
 
 Abaixo é possível observar a diferença em termos de média.
@@ -1763,26 +1833,32 @@ Abaixo é possível observar a diferença em termos de média.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(cobertura_saude = round(mean(cobertura_saude),2)) |> 
+  summarise(media = round(mean(cobertura_saude),2),
+            ) |> 
   DT::datatable()
 ```
 
--   O município com a maior taxa de cobertura de saúde é Paraubebas do Pará com 90%.
+# ALEF, CONFERIR ESTA INFORMAÇÃO ABAIXO EM FONTES EXTERNAS. ESTRANHO... ESPERAVA ALGUM LUGAR DO SUL OU SUDESTE
+
+-   O município com a maior taxa de cobertura de saúde é Paraubebas (PA) com 90%.
 
 ```{r}
 base_atributos |> 
   filter(cobertura_saude == max(cobertura_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude, churn) |> 
+  select(cns, uf_destino, 
+         municipio_destino, populacao, 
+         pib_percapita, cobertura_saude, 
+         churn) |> 
   DT::datatable()
 ```
 
--   O município com a menor taxa de cobertura de saúde é Santa Isabel do Rio Negro com 0,13%.
+-   O município com a menor taxa de cobertura de saúde é Santa Isabel do Rio Negro (AM) com 0,13%.
 
 ```{r}
 
 base_atributos |> 
   filter(cobertura_saude == min(cobertura_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude, churn) |> 
   DT::datatable()
 
 ```
@@ -1792,8 +1868,12 @@ base_atributos |>
 A seguir, adicionaremos a variável número de vagas de medicina por município a partir de dados do INEP, e calcularemos o número de vagas por mil habitantes.
 
 ``` sql
-SELECT cod_ibge, SUM(vagas) AS vagas_medicina FROM "Open Analytics Layer"."Educação"."Quantidade de vagas, matriculados, concluintes e inscritos em curso superior por município"
+SELECT cod_ibge, SUM(vagas) AS vagas_medicina 
+
+FROM "Open Analytics Layer"."Educação"."Quantidade de vagas, matriculados, concluintes e inscritos em curso superior por município"
+
 WHERE curso = 'Medicina'
+
 GROUP BY(cod_ibge)
 ```
 
@@ -1828,12 +1908,17 @@ vagas_medicina <- sqlQuery(channel, query,
 
 ```{r}
 
-base_atributos <- base_atributos |> 
+base_atributos <- 
+  base_atributos |> 
   left_join(vagas_medicina, by = c("ibge_aloc" = "cod_ibge")) |> 
   mutate(vagas_medicina = as.numeric(vagas_medicina)) |> 
   mutate(vagas_medicina_milhab = (vagas_medicina/populacao)*1000) |> 
-  mutate(vagas_medicina = ifelse(is.na(vagas_medicina), 0, vagas_medicina)) |> 
-  mutate(vagas_medicina_milhab = ifelse(is.na(vagas_medicina_milhab), 0, vagas_medicina_milhab)) |> 
+  mutate(vagas_medicina = 
+           ifelse(is.na(vagas_medicina), 0, 
+                  vagas_medicina)) |> 
+  mutate(vagas_medicina_milhab = 
+           ifelse(is.na(vagas_medicina_milhab), 0, 
+                  vagas_medicina_milhab)) |> 
   select(-vagas_medicina)
 
 base_atributos |> 
@@ -1845,7 +1930,7 @@ base_atributos |>
 A média de vagas de medicina por mil habitantes é de 0,3 e visualmente pelo boxplot abaixo não é possível observar diferença desagregada por churn, entende-se apenas que a maioria dos municípios não tem vagas em cursos de medicina.
 
 ```{r}
-a <- base_atributos |> 
+h <- base_atributos |> 
   ggplot(aes(x = vagas_medicina_milhab,
              fill = churn)) +
   geom_boxplot() +
@@ -1855,14 +1940,16 @@ a <- base_atributos |>
   ylab("Vagas de medicina por mil hab.") +
   xlab("Número de vagas")
 
-b <- base_atributos |> 
+i <- base_atributos |> 
   ggplot(aes(x = vagas_medicina_milhab)) +
   geom_histogram()
 
-a + b
+h + i
 ```
 
 Apenas abaixo conseguimos identificar uma diferença: as cidades onde os médicos permaneceram tiveram, em média, mais vagas de medicina em comparação às cidades de onde migraram.
+
+**ALEF, COLOCA MEDIANA E DESVIO-PADRAO NA TABELA ABAIXO. FIZ NAS DEMAIS, COMPLEMENTA ONDE NÃO TIVER**
 
 ```{r}
 base_atributos |> 
@@ -1876,7 +1963,9 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(vagas_medicina_milhab == max(vagas_medicina_milhab)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, vagas_medicina_milhab, churn) |> 
+  select(cns, uf_destino, 
+         municipio_destino, populacao, 
+         pib_percapita, vagas_medicina_milhab, churn) |> 
   DT::datatable()
 ```
 
