@@ -59,6 +59,11 @@ library(RODBC)
 library(estimatr)
 library(plm)
 library(patchwork)
+library(geobr)
+library(sf)
+library(scales)
+
+
 
 ```
 
@@ -1043,9 +1048,13 @@ a + b
 Em termos de média, a diferença também parece não ser relevante.
 
 ```{r}
+
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(leitos_instalacao_fisica_urgencia))
+  summarise(media = round(mean(leitos_instalacao_fisica_urgencia),2),
+            mediana = round(median(leitos_instalacao_fisica_urgencia),2),
+            sd = round(sd(leitos_instalacao_fisica_urgencia),2)) |> 
+  DT::datatable()
 ```
 
 -   O estabelecimento de saúde com o maior número de leitos fica em Mazagao no Amapá com 25 leitos.
@@ -1238,9 +1247,13 @@ a + b
 Em termos de média, têm-se que o número de agentes é maior nos estabelecimentos em que os profissionais permaneceram.
 
 ```{r}
+
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(agente_saude))
+  summarise(media = round(mean(agente_saude),2),
+            mediana = round(median(agente_saude),2),
+            sd = round(sd(agente_saude),2)) |> 
+  DT::datatable()
 ```
 
 -   O estabelecimento UNIDADE DE SAUDE DA FAMILIA VILA ROSALI tem maior número de agentes fica em São João de Mereti no Rio de Janeiro.
@@ -1286,9 +1299,13 @@ a + b
 Em termos de média a diferença é mais clara, os que permaneceram atuavam em estabelecimentos com uma média de técnicos e auxiliares de enfermagem maior em relação aos que migram.
 
 ```{r}
+
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(tec_aux_enf))
+  summarise(media = round(mean(tec_aux_enf),2),
+            mediana = round(median(tec_aux_enf),2),
+            sd = round(sd(tec_aux_enf),2)) |> 
+  DT::datatable()
 ```
 
 -   O estabelecimento POSTO MEDICO SANITARIO VILA SAO JOAO é o que possui o maior número de técnicos e auxiliares de enfermagem, também localizado em São João de Meriti no Rio de Janeiro que abriga o estabelecimento com o maior número de agentes de saúde.
@@ -1349,7 +1366,10 @@ Em termos de média, os estabelecimentos em que os profissionais permanecem tem 
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(enfermeiro))
+  summarise(media = round(mean(enfermeiro),2),
+            mediana = round(median(enfermeiro),2),
+            sd = round(sd(enfermeiro),2)) |> 
+  DT::datatable()
 ```
 
 -   O estabelecimento POSTO MEDICO SANITARIO VILA SAO JOAO além de ter o maior número de agentes comunitários de saúde, também possui o maior número de enfermeiro entre os estabelecimentos que receberam médicos do programa.
@@ -1406,7 +1426,10 @@ E em termos de média também não há diferença significativa.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(dentista))
+  summarise(media = round(mean(dentista),2),
+            mediana = round(median(dentista),2),
+            sd = round(sd(dentista),2)) |> 
+  DT::datatable()
 ```
 
 -   O estabelecimento UNIDADE DE SAUDE MARIA ANIDEJE possui o maior número de cirurgiões-dentistas localizado em Cambe no Paraná.
@@ -1421,6 +1444,96 @@ base_atributos |>
 ## 1.4. Atributos a nível município
 
 Nessa seção serão agregadas as variáveis a nível municipal a partir de diveras fontes. Essas variáveis são agrupadas de acordo sobre os aspectos econômicos, de saúde, segurança pública, educação e infraestrutura.
+
+Mas antes de prosseguirmos, iremos analisar como ocorreu a distribuição dos médicos pelo território brasileiro, primeiro por região e depois por unidade federativa.
+
+Abaixo por **região**.
+
+```{r}
+
+base_atributos <- base_atributos |>  
+  mutate(regiao_destino = case_when(
+    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
+    (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    TRUE ~ "Outro"))
+
+
+
+base_atributos |> 
+  count(regiao_destino) |> 
+  mutate(percentual = n / sum(n)) |> 
+  ggplot(aes(x = reorder(regiao_destino, n), 
+             y = n)) +
+  geom_col() + 
+  coord_flip() + 
+  theme_minimal() + 
+  xlab("Região") + 
+  ylab("Número de médicos") +
+  geom_text(aes(label = sprintf("%d (%.1f%%)", n, percentual * 100)),
+            position = position_stack(vjust = 0.5), 
+            color = "white")
+```
+
+Observa-se que o Nordeste foi a região que mais recebeu médicos do programa, no apresentou o menor percentual de retenção dos municípios conforme pode ser visto na tabela abaixo.
+
+```{r}
+base_atributos |> 
+  group_by(regiao_destino, churn) |> 
+  count() |> 
+  spread(key = churn, value = n) |> 
+  mutate(retencao = round(permanece/(permanece + migrou)*100,2)) |> 
+  arrange(desc(retencao)) |> 
+  DT::datatable()
+```
+
+Abaixo, a distribuição por **unidade federativa**.
+
+```{r}
+
+
+distribuicao_uf <- base_atributos |> 
+  group_by(uf_destino) |> 
+  count()
+
+#Leitura dos dados espaciais
+estados_br <- read_state(year = 2020, showProgress = FALSE)
+
+
+distribuicao_uf_sf <- distribuicao_uf |> 
+  left_join(estados_br, by = c("uf_destino" = "abbrev_state")) |> 
+  st_as_sf()
+
+ggplot(data = distribuicao_uf_sf) +
+  geom_sf(aes(fill = n), color = NA) +  # Preenche os estados com a variável 'n'
+  scale_fill_gradientn(colors = c("#e0f7fa", "#00796b"),  # Paleta de azul monocromática
+                       values = rescale(c(0, 50, 100)), 
+                       limits = c(0, max(distribuicao_uf_sf$n))) +  # Rescale e limita a cor com base nos dados
+  labs(fill = "Número de médicos") +  # Título da legenda
+  theme_void() +  # Remove eixos e grid
+  geom_text(data = distribuicao_uf_sf %>% st_centroid(),  # Calcula os centróides para as etiquetas
+            aes(x = st_coordinates(geom)[,1],  # Coordenada X
+                y = st_coordinates(geom)[,2],  # Coordenada Y
+                label = paste(n, "(", uf_destino, ")")),  # Concatenate the value of 'n' with the UF sigla
+            color = "black", size = 3)  # Adiciona as etiquetas
+
+
+
+```
+
+Ceará foi a unidade federativa que mais recebeu médicos do programa, no entanto a retenção ficou em 19º lugar as das melhores retenção conforme pode ser visto na tabela abaixo.
+
+```{r}
+base_atributos |> 
+  group_by(uf_destino, churn) |> 
+  count() |> 
+  spread(key = churn, value = n) |> 
+  mutate(retencao = round(permanece/(permanece + migrou)*100,2)) |> 
+  arrange(desc(retencao)) |> 
+  DT::datatable()
+```
 
 ### 1.4.1 Indicadores econômicos
 
@@ -1559,38 +1672,18 @@ pib_percapita <- sqlQuery(channel, query,
                      as.is = TRUE)
 ```
 
-#### 1.4.1.2.1 Variação de PIB per capita entre anos
-
-O código abaixo é usado para verificar a variação do PIB per capita entre os anos de 2010 e 2019.
-
-```{r}
-
-var_pib <- 
-  pib_percapita |> 
-  filter(ano == '2019' | ano == '2010') |> 
-  spread(key = ano, value = pib_percapita) |> 
-  rename(ppc_2010 = `2010`, ppc_2019 = `2019`) |> 
-  mutate(variacao = (ppc_2019 * 100 / ppc_2010) - 100) |> 
-  mutate(codigo_municipio = substr(codigo_municipio, 1, 6))
-
-```
-
-# ALEF JUNTAR ESTA BASE AOS ATRIBUTOS
-
-#### 1.4.1.2.2 PIB per capita
-
 Esta seção acessa os dados do PIB per capita do ano de 2019 como referência.
 
 ```{r}
 
-pib_percapita <- pib_percapita |> 
+pib_percapita1 <- pib_percapita |> 
   mutate(pib_percapita = as.numeric(pib_percapita)) |> 
   mutate(codigo_municipio = substring(codigo_municipio,1,6)) |> 
   filter(ano == "2019") |> 
   select(-ano)
 
 base_atributos <- base_atributos |> 
-  left_join(pib_percapita, by = c("ibge_aloc" = "codigo_municipio"))
+  left_join(pib_percapita1, by = c("ibge_aloc" = "codigo_municipio"))
 
 base_atributos |> 
   distinct(ibge_aloc, pib_percapita) |> 
@@ -1654,6 +1747,86 @@ base_atributos |>
          municipio_destino, 
          populacao, 
          pib_percapita, 
+         churn) |> 
+  DT::datatable()
+```
+
+#### 1.4.1.2.1 Variação de PIB per capita entre anos
+
+O código abaixo é usado para verificar a variação do PIB per capita entre os anos de 2010 e 2019.
+
+```{r}
+var_pib <- 
+  pib_percapita |> 
+  filter(ano == '2019' | ano == '2010') |> 
+  spread(key = ano, value = pib_percapita) |> 
+  rename(ppc_2010 = `2010`, ppc_2019 = `2019`) |> 
+  mutate(variacao_pib = (ppc_2019 * 100 / ppc_2010) - 100) |> 
+  mutate(codigo_municipio = substr(codigo_municipio, 1, 6))
+
+base_atributos <- base_atributos |> 
+  left_join(var_pib, by = c("ibge_aloc" = "codigo_municipio")) |> 
+  select(-ppc_2010, -ppc_2019)
+
+base_atributos |> 
+  distinct(ibge_aloc, variacao_pib) |> 
+  summarise(média = mean(variacao_pib))
+```
+
+Entre 2010 e 2018 o PIB per capita dos municípios que receberam médicos cresceram em média 109%. Ao desagregar por churn no boxplot abaixo, não é possível ver uma diferença clara entre os que migraram e permaneceram.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = variacao_pib,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  xlab("Percentual") +
+  ylab("Variação PIB per capita") +
+  theme(axis.text.x = element_blank())
+
+b <- base_atributos |>  
+  distinct(ibge_aloc, variacao_pib) |> 
+  ggplot(aes(x = variacao_pib)) +   
+  geom_histogram() +    
+  xlab("Variação PIB per capita") +   
+  ylab("Frequência")  
+
+a + b
+```
+
+Em termos de média, a diferença também não é muito expressiva.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(média = mean(variacao_pib),
+            mediana = median(variacao_pib),
+            sd = sd(variacao_pib)) |> 
+  DT::datatable()
+
+  
+```
+
+-   O município que apresentou o maior crescimento do PIB per capita no período analisado foi Goiana (não é Goiânia) em Pernambuco e que recebeu 4 médicos do programa.
+
+```{r}
+base_atributos |> 
+  filter(variacao_pib == max(variacao_pib)) |> 
+  select(cns, uf_destino, municipio_destino, 
+         populacao, pib_percapita, variacao_pib, 
+         churn) |> 
+  DT::datatable()
+```
+
+-   O município que apresentou a pior variação do PIB per capita foi Rosário do Catete em Sergipe e que recebeu dois médicos do programa.
+
+```{r}
+base_atributos |> 
+  filter(variacao_pib == min(variacao_pib)) |> 
+  select(cns, uf_destino, municipio_destino, 
+         populacao, pib_percapita, variacao_pib, 
          churn) |> 
   DT::datatable()
 ```
@@ -1832,13 +2005,15 @@ Abaixo é possível observar a diferença em termos de média.
 
 ```{r}
 base_atributos |> 
-  group_by(churn) |> 
-  summarise(media = round(mean(cobertura_saude),2),
-            ) |> 
-  DT::datatable()
+group_by(churn) |> 
+summarise(média = round(mean(cobertura_saude),2),
+          mediana = round(median(cobertura_saude),2),
+          sd = round(sd(cobertura_saude),2))
 ```
 
 # ALEF, CONFERIR ESTA INFORMAÇÃO ABAIXO EM FONTES EXTERNAS. ESTRANHO... ESPERAVA ALGUM LUGAR DO SUL OU SUDESTE
+
+# DANIEL, REALMENTE OS DADOS ESTÃO DIVERGENDO COM AS FONTES ANS E A POPULAÇÃO (NA CONSULTA) DO IBGE
 
 -   O município com a maior taxa de cobertura de saúde é Paraubebas (PA) com 90%.
 
@@ -1954,7 +2129,9 @@ Apenas abaixo conseguimos identificar uma diferença: as cidades onde os médico
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(vagas_medicina = round(mean(vagas_medicina_milhab),2)) |>
+  summarise(media = round(mean(vagas_medicina_milhab),2),
+            mediana = round(median(vagas_medicina_milhab),2),
+            sd = round(sd(vagas_medicina_milhab),2)) |> 
   DT::datatable()
 ```
 
@@ -2015,8 +2192,9 @@ Em termos de média, a diferença do orçamento per capita é pequena, sendo mai
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(orcamento_saude = 
-              round(mean(orcamento_saude),2)) |> 
+  summarise(media = round(mean(orcamento_saude),2),
+            mediana = round(median(orcamento_saude),2),
+            sd = round(sd(orcamento_saude),2)) |> 
   DT::datatable()
 ```
 
@@ -2025,7 +2203,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(orcamento_saude == max(orcamento_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude, churn) |> 
   DT::datatable()
 ```
 
@@ -2034,7 +2212,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(orcamento_saude == min(orcamento_saude)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, orcamento_saude, churn) |> 
   DT::datatable()
 ```
 
@@ -2084,7 +2262,9 @@ Abaixo é possível observar que a média de cobertura de esgoto sanitário é l
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(esgotamento_sanitario = round(mean(esgotamento_sanitario),2)) |> 
+  summarise(media = round(mean(esgotamento_sanitario),2),
+            mediana = round(median(esgotamento_sanitario),2),
+            sd = round(sd(esgotamento_sanitario),2)) |> 
   DT::datatable()
 ```
 
@@ -2136,7 +2316,9 @@ Assim como a mediana demonstrada pelo boxplot, a média das cidades de médicos 
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(taxa_homicidio),2)) |> 
+  summarise(media = round(mean(taxa_homicidio),2),
+            mediana = round(median(taxa_homicidio),2),
+            sd = round(sd(taxa_homicidio),2)) |> 
   DT::datatable()
 ```
 
@@ -2145,7 +2327,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(taxa_homicidio == max(taxa_homicidio)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, taxa_homicidio, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, taxa_homicidio, churn) |> 
   DT::datatable()
 ```
 
@@ -2195,10 +2377,11 @@ a + b
 Assim como na mediana, a média também indica diferença.
 
 ```{r}
-
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(ideb_anosiniciais, na.rm = TRUE),2)) |> 
+  summarise(media = round(mean(ideb_anosiniciais),2),
+            mediana = round(median(ideb_anosiniciais),2),
+            sd = round(sd(ideb_anosiniciais),2)) |> 
   DT::datatable()
 ```
 
@@ -2207,7 +2390,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(ideb_anosiniciais == max(ideb_anosiniciais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais, churn) |> 
   DT::datatable()
 ```
 
@@ -2216,7 +2399,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(ideb_anosiniciais == min(ideb_anosiniciais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosiniciais, churn) |> 
   DT::datatable()
 ```
 
@@ -2267,7 +2450,9 @@ Em termos de média, a diferença é decimal.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = round(mean(ideb_anosfinais, na.rm = TRUE),2)) |> 
+  summarise(media = round(mean(ideb_anosfinais),2),
+            mediana = round(median(ideb_anosfinais),2),
+            sd = round(sd(ideb_anosfinais),2)) |> 
   DT::datatable()
 ```
 
@@ -2276,7 +2461,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(ideb_anosfinais == max(ideb_anosfinais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais, churn) |> 
   DT::datatable()
 ```
 
@@ -2285,7 +2470,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(ideb_anosfinais == min(ideb_anosfinais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, ideb_anosfinais, churn) |> 
   DT::datatable()
 ```
 
@@ -2337,7 +2522,9 @@ Assim como na mediana, a média é maior entre os que migraram.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = round(mean(investimento_infraestrutura),2)) |> 
+  summarise(media = round(mean(investimento_infraestrutura),2),
+            mediana = round(median(investimento_infraestrutura),2),
+            sd = round(sd(investimento_infraestrutura),2)) |> 
   DT::datatable()
 ```
 
@@ -2346,7 +2533,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(investimento_infraestrutura == max(investimento_infraestrutura, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, investimento_infraestrutura, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, investimento_infraestrutura, churn) |> 
   DT::datatable()
 ```
 
@@ -2395,7 +2582,9 @@ Em termos de média, assim como na mediana, é maior entre os que migraram.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = round(mean(equipamentos_esportivos),2)) |> 
+  summarise(media = round(mean(equipamentos_esportivos),2),
+            mediana = round(median(equipamentos_esportivos),2),
+            sd = round(sd(equipamentos_esportivos),2)) |> 
   DT::datatable()
 ```
 
@@ -2404,7 +2593,7 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(equipamentos_esportivos == max(equipamentos_esportivos, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_esportivos, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_esportivos, churn) |> 
   DT::datatable()
 ```
 
@@ -2454,7 +2643,9 @@ Em termos de média, assim como na mediana, é maior entre os que migraram.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = round(mean(equipamentos_culturais),2)) |> 
+  summarise(media = round(mean(equipamentos_culturais),2),
+            mediana = round(median(equipamentos_culturais),2),
+            sd = round(sd(equipamentos_culturais),2)) |> 
   DT::datatable()
 ```
 
@@ -2463,6 +2654,6 @@ base_atributos |>
 ```{r}
 base_atributos |> 
   filter(equipamentos_culturais == max(equipamentos_culturais, na.rm = TRUE)) |> 
-  select(nome, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_culturais, churn) |> 
+  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_culturais, churn) |> 
   DT::datatable()
 ```
