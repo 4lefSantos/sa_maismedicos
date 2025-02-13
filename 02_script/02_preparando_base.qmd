@@ -452,7 +452,7 @@ table(churn$churn)
 
 Abaixo colocamos alguns exemplos que ocorreram isso.
 
-O primeiro caso é um profissional identificado por "\<83\>\<82\>\<82\>\|\<81\>\<83\>\<84\>{" que ficou poucos meses em Olinda (PE), município ao qual foi alocado. Porém, os seus registros na base se encerram em maio de 2023.
+-   O primeiro caso é um profissional identificado por "\<83\>\<82\>\<82\>\|\<81\>\<83\>\<84\>{" que ficou poucos meses em Olinda (PE), município ao qual foi alocado. Porém, os seus registros na base se encerram em maio de 2023.
 
 ```{r}
 
@@ -470,7 +470,7 @@ base_tratada |>
 
 ```
 
-O segundo caso é um profissional identificado por "\<82\>{\<84\>\<84\>}{\<80\>\<82\>\<83\>" que ao final do ano de 2024 não estava mais na base, apesar de ter trabalhado muito tempo em Utinga (BA).
+-   O segundo caso é um profissional identificado por "\<82\>{\<84\>\<84\>}{\<80\>\<82\>\<83\>" que ao final do ano de 2024 não estava mais na base, apesar de ter trabalhado muito tempo em Utinga (BA).
 
 ```{r}
 
@@ -518,7 +518,7 @@ mean(meses_trabalho$meses_no_local_alocado)
 
 ```
 
-O exemplo que mostramos anteriormente é evidente quanto a isso. O profissional atuou no município de destino por sete meses, entre agosto de 2019 e fevereiro de 2020. Porém, os últimos registros são este ano. Após isso, não aparece mais na base.
+-   O exemplo que mostramos anteriormente é evidente quanto a isso. O profissional atuou no município de destino por sete meses, entre agosto de 2019 e fevereiro de 2020. Porém, os últimos registros são este ano. Após isso, não aparece mais na base.
 
 ```{r}
 
@@ -733,7 +733,7 @@ base_atributos <-
 
 ```
 
-A maioria dos registros ficou apenas em um só estabelecimento ao longo de todo o período. O profissional identificado pelo código "\<80\>\<84\>\~\~\<80\>}\<83\>\<84\>}\<82\>}" é um bom exemplo. O profissional mudou de unidade (sempre na APS), mas sempre com apenas um vínculo.
+-   A maioria dos registros ficou apenas em um só estabelecimento ao longo de todo o período. O profissional identificado pelo código "\<80\>\<84\>\~\~\<80\>}\<83\>\<84\>}\<82\>}" é um bom exemplo. O profissional mudou de unidade (sempre na APS), mas sempre com apenas um vínculo.
 
 ```{r}
 
@@ -751,7 +751,7 @@ base_tratada3 |>
 
 ```
 
-Em contrapartida, o profissional identificado pelo código "{}\~}}\|\<80\>\<82\>\~" começa a atuar na APS em junho de 2019. Ao longo de todo o período, a pessoa se mantém no mesmo município que foi alocada (Mutum-MG). Inclusive, é o tipo de caso que já atuava antes no mesmo município.
+-   Em contrapartida, o profissional identificado pelo código "{}\~}}\|\<80\>\<82\>\~" começa a atuar na APS em junho de 2019. Ao longo de todo o período, a pessoa se mantém no mesmo município que foi alocada (Mutum-MG). Inclusive, é o tipo de caso que já atuava antes no mesmo município.
 
 Todos os meses ele atuava no município, vinculado não só a APS, mas outros estabelecimentos.
 
@@ -917,6 +917,14 @@ wilcox.test(anos_formacao ~ churn, data = base_atributos)
 
 ```
 
+**Contando o número de CPF's na base e verificando se possui mais de um registro associado ao CPF.**
+
+```{r}
+count_cpf_atributos <- base_atributos |> 
+  group_by(cpf_prof) |> 
+  count()
+```
+
 ## 1.3. Atributos a nível estabelecimento
 
 Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos que receberam médicos do programa, tais como, número de leitos e profissionais.
@@ -925,13 +933,35 @@ Mas antes de prosseguirmos, adicionaremos a variável `cnes` que identifica o es
 
 ```{r}
 
-codigo_cnes <- temp2 |> 
-  filter(HORA_AMB > 30) |> 
-  distinct(CPF_PROF, NOMEPROF, CNES)
 
-base_atributos_t <- base_atributos |> 
-  left_join(codigo_cnes, 
-            by = c("cpf_prof" = "CPF_PROF"))
+temp3 <- base_tratada |> 
+  mutate(aps = if_else(TP_UNID %in% c("02", "01", "32", "71", "72", "74"), 
+                       "APS", "Outros")) |> 
+  mutate(ano = year(COMPETEN)) |> 
+  filter(ano %in% c(2019, 2020, 2021, 2022, 2023, 2024)) |> 
+  mutate(assumiu_programa = 
+           if_else(ano %in% c(2019, 2020, 2021, 2022, 2023, 2024) & 
+                   aps == 'APS' & 
+                   CODUFMUN == ibge_aloc, 
+                   "Foi alocado", 
+                   "Não foi alocado"))
+  
+data_cnes <- temp3 |> 
+  filter(assumiu_programa == "Foi alocado") |> 
+  distinct(CPF_PROF, CNES, ano) |> 
+  filter(CPF_PROF %in% churn$cpf_prof)
+
+
+teste <- base_atributos |> 
+  filter(!cpf_prof %in% data_cnes$CPF_PROF)
+```
+
+**A contagem de número de CPF's únicos foi igual que na base de atributos.**
+
+```{r}
+count_cpf_cnes <- data_cnes |> 
+  group_by(CPF_PROF) |> 
+  count()
 ```
 
 ### 1.3.1 Número de leitos das unidades
@@ -1008,18 +1038,30 @@ Acessando dados de leitos das unidades de APS as quais os indivíduos foram aloc
 leitos_unidades <- 
   leitos |> 
   mutate(Ano = as.numeric(Ano)) |> 
-  filter(CNES %in% base_atributos$CNES) |> 
-  filter(Ano == 2019) |> 
-  select(CNES, leitos_instalacao_fisica_urgencia)
+  filter(CNES %in% data_cnes$CNES) |> 
+  select(CNES, Ano, leitos_instalacao_fisica_urgencia)
   
 
-base_atributos <- leitos_unidades |>
-  left_join(base_atributos, 
-            by = c("CNES" = "CNES"))
+data_cnes_2 <- data_cnes |>
+  left_join(leitos_unidades, 
+            by = c("CNES" = "CNES", "ano" = "Ano")) |> 
+  group_by(CPF_PROF) |> 
+  summarise(m_leitos_instalacao_fisica_urgencia = 
+              mean(leitos_instalacao_fisica_urgencia))
+
+base_atributosT <- base_atributos |> 
+  left_join(data_cnes_2, by = c("cpf_prof" = "CPF_PROF"))
 
 base_atributos |> 
   distinct(CNES, leitos_instalacao_fisica_urgencia) |> 
   summarise(média = round(mean(leitos_instalacao_fisica_urgencia),2))
+```
+
+**Pela contagem abaixo, existem 4 CNES no data_cnes que não está no dataframe leitos_unidades, mas estão associados a 4 cpf distintos, portanto não justifca o tamanho de NA's na variável de leitos.**
+
+```{r}
+count_leitos <- data_cnes |> 
+  filter(!CNES %in% leitos_unidades$CNES)
 ```
 
 A média de leitos de instalação física de urgência dos estabelecimentos que receberam médicos do programa é de 5,95 e ao desagregar por churn, não há uma diferença visualmente clara entre daqueles que permaneceram e migraram.
@@ -1193,13 +1235,14 @@ equipe_saude2 <-
   
 equipe_saude3 <- 
     equipe_saude2 |> 
-    filter(CNES %in% base_atributos$CNES) |> 
-    group_by(CNES, categoria) |> 
+    filter(CNES %in% data_cnes$CNES) |> 
+    group_by(CNES, ANO, categoria) |> 
     summarise(FTE40 = mean(FTE40)) |> 
     ungroup() |> 
     pivot_wider(names_from = categoria, 
                 values_from = FTE40) |> 
-    mutate(across(2:5, ~ ifelse(is.na(.), 0, .))) 
+    mutate(across(2:5, ~ ifelse(is.na(.), 0, .))) |> 
+  mutate(ANO = as.numeric(ANO))
 
 ```
 
@@ -1207,10 +1250,22 @@ Juntando a base.
 
 ```{r}
 
-base_atributos <- 
-  base_atributos |> 
+data_cnes_3 <- 
+  data_cnes |> 
     left_join(equipe_saude3,
-              by = c("CNES"="CNES"))
+              by = c("CNES"="CNES", "ano" = "ANO")) |> 
+  group_by(CPF_PROF) |> 
+  summarise(m_agente_saude = 
+              mean(agente_saude),
+            m_tec_aux_enf = 
+              mean(tec_aux_enf),
+            m_enfermeiro = 
+              mean(enfermeiro),
+            m_dentista = 
+              mean(dentista))
+
+base_atributos <- base_atributos |> 
+  left_join(data_cnes_3, by = c("cpf_prof" = "CPF_PROF"))
 ```
 
 A seguir, iremos analisar os **agentes de saúde**.
@@ -1833,7 +1888,7 @@ base_atributos |>
 
 #### 1.4.1.3 População ocupada
 
-Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) do IBGE por meio do SIDRA, tabela 1685.
+Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) de 2019 do IBGE por meio do SIDRA, tabela 1685.
 
 E calculamos o percentual da população ocupada com os dados do Censo 2022.
 
@@ -1856,19 +1911,19 @@ base_atributos <-
   base_atributos |> 
   left_join(pop_ocupada_mun, 
             by = c("ibge_aloc" = "cod_ibge")) |> 
-  mutate(tx_pop_ocupada = pop_ocupada/populacao) |> 
-  select(-pop_ocupada)
+  mutate(tx_pop_ocupada_2019 = pop_ocupada/populacao) |> 
+  rename(pop_ocupada_2019 = pop_ocupada)
 
 base_atributos |> 
-  distinct(ibge_aloc, tx_pop_ocupada) |> 
-  summarise(média = mean(tx_pop_ocupada))
+  distinct(ibge_aloc, tx_pop_ocupada_2019) |> 
+  summarise(média = mean(tx_pop_ocupada_2019))
 ```
 
 A média das taxas de ocupação dos municípios é de 11,7%, sendo que ela é maior nos municípios em que os médicos permanecem conforme boxplot abaixo.
 
 ```{r}
 e <- base_atributos |> 
-  ggplot(aes(x = tx_pop_ocupada,
+  ggplot(aes(x = tx_pop_ocupada_2019,
              fill = churn)) +
   geom_boxplot() + 
   coord_flip() +
@@ -1878,8 +1933,8 @@ e <- base_atributos |>
   theme(axis.text.x = element_blank())
 
 f <- base_atributos |>  
-  distinct(ibge_aloc, tx_pop_ocupada) |> 
-  ggplot(aes(x = tx_pop_ocupada)) +   
+  distinct(ibge_aloc, tx_pop_ocupada_2019) |> 
+  ggplot(aes(x = tx_pop_ocupada_2019)) +   
   geom_histogram() +    
   xlab("Taxa de ocupação") +   
   ylab("Frequência")  
@@ -1892,9 +1947,9 @@ Abaixo pode-se olhar a diferença em termos de média.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(tx_pop_ocupada)*100,2),
-            mediana = round(median(tx_pop_ocupada)*100,2),
-            sd = round(sd(tx_pop_ocupada)*100,2)) |> 
+  summarise(media = round(mean(tx_pop_ocupada_2019)*100,2),
+            mediana = round(median(tx_pop_ocupada_2019)*100,2),
+            sd = round(sd(tx_pop_ocupada_2019)*100,2)) |> 
   DT::datatable()
 ```
 
@@ -1913,9 +1968,95 @@ base_atributos |>
 
 ```{r}
 base_atributos |> 
-  filter(tx_pop_ocupada == min(tx_pop_ocupada)) |> 
+  filter(tx_pop_ocupada_2019 == min(tx_pop_ocupada_2019)) |> 
   select(cns, uf_destino, municipio_destino, 
-         populacao, pib_percapita, tx_pop_ocupada, 
+         populacao, pib_percapita, tx_pop_ocupada_2019, 
+         churn) |> 
+  DT::datatable()
+```
+
+#### 1.4.1.3.1 Variação da população ocupada entre anos
+
+Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) de 2010 do IBGE por meio do SIDRA, tabela 1685.
+
+E calculamos o percentual da população ocupada com os dados do Censo 2010 por meio do SIDRA, tabela 1378.
+
+```{r}
+pop_ocupada_2010 <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
+    select(cod_ibge, `2010`) |> 
+  rename(pop_ocupada_2010 = `2010`)
+
+censo_2010 <-  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/censo_2010.xlsx") |> 
+  select(-municipio)
+
+pop_ocupada_2010 <- pop_ocupada_2010 |> 
+  left_join(censo_2010, by = c("cod_ibge")) |> 
+  mutate(pop_ocupada_2010 = as.numeric(pop_ocupada_2010)) |> 
+  mutate(tx_pop_ocupada_2010 = pop_ocupada_2010/populacao_2010) |> 
+  select(cod_ibge, populacao_2010, pop_ocupada_2010, tx_pop_ocupada_2010) |> 
+  mutate(cod_ibge = substring(cod_ibge, 1, 6))
+
+base_atributos <- base_atributos |> 
+  left_join(pop_ocupada_2010, by = c("ibge_aloc" = "cod_ibge")) |> 
+  mutate(var_taxa_ocupacao = (tx_pop_ocupada_2019 *100/tx_pop_ocupada_2010) - 100)
+
+base_atributos |> 
+  distinct(ibge_aloc, var_taxa_ocupacao) |> 
+  summarise(média = mean(var_taxa_ocupacao))
+```
+
+A taxa de ocupação apresentou um crescimento relativo de 19,6% entre 2010 e 2019 nos municípios que receberam médicos do programa. Ao desagregar por churn no boxplot abaixo não é possível ver diferença entre os que migraram e permaneceram.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = var_taxa_ocupacao,
+             fill = churn)) +
+  geom_boxplot() + 
+  coord_flip() +
+  theme(legend.position = "top") +
+  xlab("Percentual") +
+  ylab("Taxa de ocupação") +
+  theme(axis.text.x = element_blank())
+
+b <- base_atributos |>  
+  distinct(ibge_aloc, var_taxa_ocupacao) |> 
+  ggplot(aes(x = var_taxa_ocupacao)) +   
+  geom_histogram() +    
+  xlab("Taxa de ocupação") +   
+  ylab("Frequência")  
+
+a + b
+```
+
+Em termos de média, os valores também são bem próximos.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = round(mean(var_taxa_ocupacao),2),
+            mediana = round(median(var_taxa_ocupacao),2),
+            sd = round(sd(var_taxa_ocupacao),2)) |> 
+  DT::datatable()
+```
+
+-   A cidade que apresentou o maior crescimento relativo da taxa de ocupação foi Guaribas do Piauí.
+
+```{r}
+base_atributos |> 
+  filter(var_taxa_ocupacao == max(var_taxa_ocupacao)) |> 
+  select(cns, uf_destino, municipio_destino, 
+         populacao,tx_pop_ocupada_2010,tx_pop_ocupada_2019, var_taxa_ocupacao, 
+         churn) |> 
+  DT::datatable()
+```
+
+-   O munípio que apresentou a maior redução relativa da taxa de ocupação foi Cabroso do Pernambuco. (**No entanto o registro de população ocupada de 2010 foi 52.909, valor atípico considerando a série histórica**)
+
+```{r}
+base_atributos |> 
+  filter(var_taxa_ocupacao == min(var_taxa_ocupacao)) |> 
+  select(cns, uf_destino, municipio_destino, 
+         populacao,tx_pop_ocupada_2010,tx_pop_ocupada_2019, var_taxa_ocupacao, 
          churn) |> 
   DT::datatable()
 ```
@@ -1923,120 +2064,6 @@ base_atributos |>
 ### 1.4.2 Indicadores de saúde
 
 A seguir, as variáveis relacionadas a qualidade e acesso à saúde.
-
-#### 1.4.2.1 Cobertura de plano de saúde
-
-A partir dos dados da Agência Nacional de Saúde (ANS), agregaremos na nossa base a taxa de cobertura de plano de saúde que é resultado do número de planos de saúde dividido pela população.
-
-``` sql
-
-SELECT cod_ibge, taxa FROM "Open Analytics Layer".Infraestrutura."Cobertura Plano de Saúde"
-```
-
-```{r}
-
-# codigo para acessar dados de datalake proprio 
-
-dremio_host <- Sys.getenv("endereco")
-dremio_port <- Sys.getenv("port")
-dremio_uid <- Sys.getenv("uid")
-dremio_pwd <- Sys.getenv("datalake")
-
-
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
-                                     AUTHENTICATIONTYPE=Basic Authentication;
-                                     CONNECTIONTYPE=Direct", 
-                         dremio_host, 
-                         dremio_port, 
-                         dremio_uid, 
-                         dremio_pwd))
-
-query <- 'SELECT * FROM "@alef_santos"."pmmb_cobertura_plano_saude"'
-
-
-
-cobertura_saude <- sqlQuery(channel, query, 
-                     as.is = TRUE)
-
-
-```
-
-```{r}
-cobertura_saude <- cobertura_saude |> 
-  rename(cobertura_saude = taxa) |> 
-  mutate(cobertura_saude = as.numeric(cobertura_saude))
-
-base_atributos <- base_atributos |> 
-  left_join(cobertura_saude, 
-            by = c("ibge_aloc" = "cod_ibge"))
-
-base_atributos |> 
-  distinct(ibge_aloc, cobertura_saude) |> 
-  summarise(média = mean(cobertura_saude))
-```
-
-A média de cobertura de saúde dos municípios é de 8,8%, e quando desagregado por churn é maior entre os municípios com indivíduos que permaneceram conforme pode ser visto abaixo.
-
-```{r}
-f <- base_atributos |> 
-      ggplot(aes(x = cobertura_saude,
-                 fill = churn)) +
-      geom_boxplot() +
-      coord_flip() +
-      theme(legend.position = "top") +
-      theme(axis.text.x = element_blank()) +
-      ylab("Cobertura de saúde") +
-      xlab("Percentual")
-
-g <- base_atributos |> 
-  ggplot(aes(x = cobertura_saude)) +
-  geom_histogram() +
-    ylab("Frequência") + 
-  xlab("Cobertura de saúde")
-
-f + g
-```
-
-Abaixo é possível observar a diferença em termos de média.
-
-```{r}
-base_atributos |> 
-group_by(churn) |> 
-summarise(média = round(mean(cobertura_saude),2),
-          mediana = round(median(cobertura_saude),2),
-          sd = round(sd(cobertura_saude),2))
-```
-
-# ALEF, CONFERIR ESTA INFORMAÇÃO ABAIXO EM FONTES EXTERNAS. ESTRANHO... ESPERAVA ALGUM LUGAR DO SUL OU SUDESTE
-
-# DANIEL, REALMENTE OS DADOS ESTÃO DIVERGENDO COM AS FONTES ANS E A POPULAÇÃO (NA CONSULTA) DO IBGE
-
--   O município com a maior taxa de cobertura de saúde é Paraubebas (PA) com 90%.
-
-```{r}
-base_atributos |> 
-  filter(cobertura_saude == max(cobertura_saude)) |> 
-  select(cns, uf_destino, 
-         municipio_destino, populacao, 
-         pib_percapita, cobertura_saude, 
-         churn) |> 
-  DT::datatable()
-```
-
--   O município com a menor taxa de cobertura de saúde é Santa Isabel do Rio Negro (AM) com 0,13%.
-
-```{r}
-
-base_atributos |> 
-  filter(cobertura_saude == min(cobertura_saude)) |> 
-  select(cns, uf_destino, municipio_destino, populacao, pib_percapita, cobertura_saude, churn) |> 
-  DT::datatable()
-
-```
 
 #### 1.4.2.2 Número vagas de medicina
 
