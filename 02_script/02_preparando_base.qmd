@@ -974,7 +974,6 @@ AS(
         CAST(PF.HORAHOSP + PF.HORAOUTR + PF.HORA_AMB AS FLOAT) AS CH_TOTAL
     FROM Dados.cnes.PF
     WHERE 
-        substr(PF.COMPETEN, 5, 2) = '01' AND
         substr(PF.COMPETEN, 1, 4) > 2018 AND 
         (CBO = '515105' OR 
         substr(PF.CBO, 1, 4) = '2235' OR 
@@ -989,6 +988,7 @@ AS(
         PF.CBO = '322250')) 
 
 SELECT a.ANO, 
+        a.competen,
        a.CNES, 
        b.FANTASIA,
        c.uf_sigla,
@@ -1004,6 +1004,7 @@ FROM ch_cnes_selecionados a
         ON a.CODUFMUN = CAST(c.cod_municipio AS CHARACTER)
 GROUP BY 
         ANO,
+        competen,
         CNES, 
         fantasia,
         uf_sigla,
@@ -1049,7 +1050,7 @@ A seguir são filtrados apenas as equipes dos estabelecimentos presentes na base
 
 equipe_saude2 <- 
     equipe_saude |> 
-    select(CNES, ANO, categoria, FTE40) |> 
+    select(CNES, COMPETEN, categoria, FTE40) |> 
     mutate(categoria = 
              case_when(
                categoria == 
@@ -1066,13 +1067,14 @@ equipe_saude2 <-
 equipe_saude3 <- 
     equipe_saude2 |> 
     filter(CNES %in% temp3$cnes) |> 
-    group_by(CNES, ANO, categoria) |> 
+    group_by(CNES, COMPETEN, categoria) |> 
     summarise(FTE40 = mean(FTE40)) |> 
     ungroup() |> 
     pivot_wider(names_from = categoria, 
                 values_from = FTE40) |> 
     mutate(across(2:5, ~ ifelse(is.na(.), 0, .))) |> 
-  mutate(ANO = as.numeric(ANO))
+  mutate(COMPETEN = as.Date(paste0(COMPETEN, "01"), 
+          format = "%Y%m%d"))
 
 ```
 
@@ -1080,11 +1082,10 @@ Juntando a base.
 
 ```{r}
 
-data_cnes_3 <- 
-  data_cnes |> 
-    left_join(equipe_saude3,
-              by = c("CNES"="CNES", "ano" = "ANO")) |> 
-  group_by(CPF_PROF) |> 
+data_cnes <- 
+  temp3 |> 
+    left_join(equipe_saude3, by = c("cnes"="CNES", "competen" = "COMPETEN")) |> 
+  group_by(cpf_prof) |> 
   summarise(m_agente_saude = 
               mean(agente_saude),
             m_tec_aux_enf = 
@@ -1095,22 +1096,21 @@ data_cnes_3 <-
               mean(dentista))
 
 base_atributos <- base_atributos |> 
-  left_join(data_cnes_3, by = c("cpf_prof" = "CPF_PROF"))
+  left_join(data_cnes, by = c("cpf_prof" = "cpf_prof"))
 ```
 
 A seguir, iremos analisar os **agentes de saúde**.
 
 ```{r}
-base_atributos |> 
-  distinct(CNES, agente_saude) |> 
-  summarise(média = mean(agente_saude))
+
+mean(base_atributos$m_agente_saude, na.rm = TRUE)
 ```
 
-A média de agentes comunitários de saúde nos estabelecimentos que receberam médicos do programa é de 8,3. Ao desagregar por churn, observamos uma mediana maior entre os que permaneceram.
+A média de agentes comunitários de saúde nos estabelecimentos que receberam médicos do programa é de 8,5. Ao desagregar por churn, observamos uma mediana maior entre os que permaneceram.
 
 ```{r}
 a <- base_atributos |> 
-  ggplot(aes(x = agente_saude,
+  ggplot(aes(x = m_agente_saude,
              fill = churn)) +
   geom_boxplot() + 
   coord_flip() +
@@ -1120,8 +1120,7 @@ a <- base_atributos |>
   ylab("Agentes Comunitários de Saúde")
 
 b <- base_atributos |>
-  distinct(CNES, agente_saude) |> 
-  ggplot(aes(x= agente_saude)) + 
+  ggplot(aes(x= m_agente_saude)) + 
   geom_histogram() +
   xlab("Agentes Comunitários de Saúde") +
   ylab("Frequência")
@@ -1135,34 +1134,23 @@ Em termos de média, têm-se que o número de agentes é maior nos estabelecimen
 
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(agente_saude),2),
-            mediana = round(median(agente_saude),2),
-            sd = round(sd(agente_saude),2)) |> 
-  DT::datatable()
-```
-
--   O estabelecimento UNIDADE DE SAUDE DA FAMILIA VILA ROSALI tem maior número de agentes fica em São João de Mereti no Rio de Janeiro.
-
-```{r}
-base_atributos |> 
-  filter(agente_saude == max(agente_saude)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, agente_saude, churn) |> 
+  summarise(media = round(mean(m_agente_saude, na.rm = TRUE),2),
+            mediana = round(median(m_agente_saude, na.rm = TRUE),2),
+            sd = round(sd(m_agente_saude, na.rm = TRUE),2)) |> 
   DT::datatable()
 ```
 
 A seguir, os **técnicos e auxiliares de enfermagem**.
 
 ```{r}
-base_atributos |> 
-  distinct(CNES, tec_aux_enf) |> 
-  summarise(média = mean(tec_aux_enf))
+mean(base_atributos$m_tec_aux_enf, na.rm = TRUE)
 ```
 
-A média de técnicos e auxiliares de enfermagem nos estabelecimentos é de 2,9. Ao desagregar por churn, pelo boxplot abaixo, visualmente não é possível observar uma diferença clara.
+A média de técnicos e auxiliares de enfermagem nos estabelecimentos é de 2,98. Ao desagregar por churn, pelo boxplot abaixo, é possível observar uma mediana maior entre os que permanecem.
 
 ```{r}
 a <- base_atributos |> 
-  ggplot(aes(x = tec_aux_enf,
+  ggplot(aes(x = m_tec_aux_enf,
              fill = churn)) +
   geom_boxplot() + 
   coord_flip() +
@@ -1172,8 +1160,7 @@ a <- base_atributos |>
   ylab("Técnicos e auxiliares de enfermagem")
 
 b <- base_atributos |>
-  distinct(CNES, tec_aux_enf) |> 
-  ggplot(aes(x= tec_aux_enf)) + 
+  ggplot(aes(x= m_tec_aux_enf)) + 
   geom_histogram() +
   xlab("Técnicos e auxiliares de enfermagem") +
   ylab("Frequência")
@@ -1181,35 +1168,15 @@ b <- base_atributos |>
 a + b
 ```
 
-Em termos de média a diferença é mais clara, os que permaneceram atuavam em estabelecimentos com uma média de técnicos e auxiliares de enfermagem maior em relação aos que migram.
+Em termos de média, os que permaneceram atuavam em estabelecimentos com uma média de técnicos e auxiliares de enfermagem maior em relação aos que migraram.
 
 ```{r}
 
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(tec_aux_enf),2),
-            mediana = round(median(tec_aux_enf),2),
-            sd = round(sd(tec_aux_enf),2)) |> 
-  DT::datatable()
-```
-
--   O estabelecimento POSTO MEDICO SANITARIO VILA SAO JOAO é o que possui o maior número de técnicos e auxiliares de enfermagem, também localizado em São João de Meriti no Rio de Janeiro que abriga o estabelecimento com o maior número de agentes de saúde.
-
-```{r}
-
-base_atributos |> 
-  filter(tec_aux_enf == max(tec_aux_enf)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, tec_aux_enf, churn) |> 
-  DT::datatable()
-
-```
-
--   O estabelecimento UNIDADE BASICA DE SAUDE DO DISTRITO DO CAARAPA é o que possui o menor número de técnicos e auxiliares de enfermagem localizado no munícipio Laguna Carapa em Mato Grosso do Sul.
-
-```{r}
-base_atributos |> 
-  filter(tec_aux_enf == min(tec_aux_enf)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, tec_aux_enf, churn) |> 
+  summarise(media = round(mean(m_tec_aux_enf, na.rm = TRUE),2),
+            mediana = round(median(m_tec_aux_enf, na.rm = TRUE),2),
+            sd = round(sd(m_tec_aux_enf, na.rm = TRUE),2)) |> 
   DT::datatable()
 ```
 
@@ -1217,17 +1184,15 @@ A seguir, os **enfermeiros**.
 
 ```{r}
 
-base_atributos |> 
-  distinct(CNES, enfermeiro) |> 
-  summarise(média = mean(enfermeiro))
+mean(base_atributos$m_enfermeiro, na.rm = TRUE)
 
 ```
 
-A média de enfermeiros nos estabelecimentos é de 1,7. Ao desagregar por churn não é possível observar uma diferença clara conforme boxplot abaixo.
+A média de enfermeiros nos estabelecimentos é de 1,8. Ao desagregar por churn não é possível observar uma mediana maior de enfermeiros nos estabelecimentos de médicos que permaneceram.
 
 ```{r}
 a <- base_atributos |> 
-  ggplot(aes(x = enfermeiro,
+  ggplot(aes(x = m_enfermeiro,
              fill = churn)) +
   geom_boxplot() + 
   coord_flip() +
@@ -1237,8 +1202,7 @@ a <- base_atributos |>
   ylab("Enfermeiros")
 
 b <- base_atributos |>
-  distinct(CNES, enfermeiro) |> 
-  ggplot(aes(x= enfermeiro)) + 
+  ggplot(aes(x= m_enfermeiro)) + 
   geom_histogram() +
   xlab("Enfermeiros") +
   ylab("Frequência")
@@ -1251,43 +1215,23 @@ Em termos de média, os estabelecimentos em que os profissionais permanecem tem 
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(enfermeiro),2),
-            mediana = round(median(enfermeiro),2),
-            sd = round(sd(enfermeiro),2)) |> 
-  DT::datatable()
-```
-
--   O estabelecimento POSTO MEDICO SANITARIO VILA SAO JOAO além de ter o maior número de agentes comunitários de saúde, também possui o maior número de enfermeiro entre os estabelecimentos que receberam médicos do programa.
-
-```{r}
-base_atributos |> 
-  filter(enfermeiro == max(enfermeiro)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, enfermeiro, churn) |> 
-  DT::datatable()
-```
-
--   Em relação aos que possui o menor número de enfermeiros, são três estabelecimentos. Entre elas, a UNIDADE BASICA DE SAUDE DO DISTRITO DO CAARAPA de Laguna de Carapa que também possui o menor número de técnico e auxiliares de enfermagem.
-
-```{r}
-base_atributos |> 
-  filter(enfermeiro == min(enfermeiro)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, enfermeiro, churn) |> 
+  summarise(media = round(mean(m_enfermeiro, na.rm = TRUE),2),
+            mediana = round(median(m_enfermeiro, na.rm = TRUE),2),
+            sd = round(sd(m_enfermeiro, na.rm = TRUE),2)) |> 
   DT::datatable()
 ```
 
 A seguir, os **dentistas**.
 
 ```{r}
-base_atributos |> 
-  distinct(CNES, dentista) |> 
-  summarise(média = mean(dentista))
+mean(base_atributos$m_dentista, na.rm = TRUE)
 ```
 
-A média é de 1,1 dentistas nos estabelecimentos que receberam médicos do programa. Ao desagregar por churn no boxplot abaixo não é possível ver diferença em relação a mediana.
+A média é de 1,3 dentistas nos estabelecimentos que receberam médicos do programa. Ao desagregar por churn no boxplot abaixo é possível observar uma mediana maior entre os que permanecem.
 
 ```{r}
 a <- base_atributos |> 
-  ggplot(aes(x = dentista,
+  ggplot(aes(x = m_dentista,
              fill = churn)) +
   geom_boxplot() + 
   coord_flip() +
@@ -1297,8 +1241,7 @@ a <- base_atributos |>
   ylab("Cirurgiões-dentistas")
 
 b <- base_atributos |>
-  distinct(CNES, dentista) |> 
-  ggplot(aes(x= dentista)) + 
+  ggplot(aes(x= m_dentista)) + 
   geom_histogram() +
   xlab("Cirurgiões-dentista") +
   ylab("Frequência")
@@ -1306,23 +1249,14 @@ b <- base_atributos |>
 a + b
 ```
 
-E em termos de média também não há diferença significativa.
+E em termos de média, o número de dentistas é maior entre os que permaneceram.
 
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(dentista),2),
-            mediana = round(median(dentista),2),
-            sd = round(sd(dentista),2)) |> 
-  DT::datatable()
-```
-
--   O estabelecimento UNIDADE DE SAUDE MARIA ANIDEJE possui o maior número de cirurgiões-dentistas localizado em Cambe no Paraná.
-
-```{r}
-base_atributos |> 
-  filter(dentista == max(dentista)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, dentista, churn) |> 
+  summarise(media = round(mean(m_dentista, na.rm = TRUE),2),
+            mediana = round(median(m_dentista, na.rm = TRUE),2),
+            sd = round(sd(m_dentista, na.rm = TRUE),2)) |> 
   DT::datatable()
 ```
 
@@ -1362,7 +1296,7 @@ base_atributos |>
             color = "white")
 ```
 
-Observa-se que o Nordeste foi a região que mais recebeu médicos do programa, no apresentou o menor percentual de retenção dos municípios conforme pode ser visto na tabela abaixo.
+Observe que o Nordeste foi a região que mais recebeu médicos do programa, no entanto apresentou o menor percentual de retenção dos municípios conforme pode ser visto na tabela abaixo.
 
 ```{r}
 base_atributos |> 
@@ -1646,7 +1580,7 @@ var_pib <-
   filter(ano == '2019' | ano == '2010') |> 
   spread(key = ano, value = pib_percapita) |> 
   rename(ppc_2010 = `2010`, ppc_2019 = `2019`) |> 
-  mutate(variacao_pib = (ppc_2019 * 100 / ppc_2010) - 100) |> 
+  mutate(variacao_pib = round((ppc_2019 * 100 / ppc_2010) - 100),2) |> 
   mutate(codigo_municipio = substr(codigo_municipio, 1, 6))
 
 base_atributos <- base_atributos |> 
@@ -1686,9 +1620,9 @@ Em termos de média, a diferença também não é muito expressiva.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(média = mean(variacao_pib),
-            mediana = median(variacao_pib),
-            sd = sd(variacao_pib)) |> 
+  summarise(média = round(mean(variacao_pib),2),
+            mediana = round(median(variacao_pib),2),
+            sd = round(sd(variacao_pib),2)) |> 
   DT::datatable()
 
   
@@ -1741,7 +1675,7 @@ base_atributos <-
   base_atributos |> 
   left_join(pop_ocupada_mun, 
             by = c("ibge_aloc" = "cod_ibge")) |> 
-  mutate(tx_pop_ocupada_2019 = pop_ocupada/populacao) |> 
+  mutate(tx_pop_ocupada_2019 = (pop_ocupada/populacao)*100) |> 
   rename(pop_ocupada_2019 = pop_ocupada)
 
 base_atributos |> 
@@ -1787,9 +1721,9 @@ base_atributos |>
 
 ```{r}
 base_atributos |> 
-  filter(tx_pop_ocupada == max(tx_pop_ocupada)) |> 
+  filter(tx_pop_ocupada_2019 == max(tx_pop_ocupada_2019)) |> 
   select(cns, uf_destino, municipio_destino, 
-         populacao, pib_percapita, tx_pop_ocupada, 
+         populacao, pib_percapita, tx_pop_ocupada_2019, 
          churn) |> 
   DT::datatable()
 ```
@@ -1814,20 +1748,23 @@ E calculamos o percentual da população ocupada com os dados do Censo 2010 por 
 ```{r}
 pop_ocupada_2010 <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
     select(cod_ibge, `2010`) |> 
-  rename(pop_ocupada_2010 = `2010`)
+  rename(pop_ocupada_2010 = `2010`) |> 
+  mutate(cod_ibge = substring(cod_ibge, 1, 6)) |> 
+  mutate(pop_ocupada_2010 = as.numeric(pop_ocupada_2010))
+
+base_atributos <- base_atributos |> 
+  left_join(pop_ocupada_2010, by = c("ibge_aloc" = "cod_ibge"))
 
 censo_2010 <-  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/censo_2010.xlsx") |> 
-  select(-municipio)
-
-pop_ocupada_2010 <- pop_ocupada_2010 |> 
-  left_join(censo_2010, by = c("cod_ibge")) |> 
-  mutate(pop_ocupada_2010 = as.numeric(pop_ocupada_2010)) |> 
-  mutate(tx_pop_ocupada_2010 = pop_ocupada_2010/populacao_2010) |> 
-  select(cod_ibge, populacao_2010, pop_ocupada_2010, tx_pop_ocupada_2010) |> 
+  select(-municipio) |> 
   mutate(cod_ibge = substring(cod_ibge, 1, 6))
 
 base_atributos <- base_atributos |> 
-  left_join(pop_ocupada_2010, by = c("ibge_aloc" = "cod_ibge")) |> 
+  left_join(censo_2010, by = c("ibge_aloc" = "cod_ibge"))
+
+ 
+base_atributos <- base_atributos |>  
+  mutate(tx_pop_ocupada_2010 = (pop_ocupada_2010/populacao_2010)*100) |> 
   mutate(var_taxa_ocupacao = (tx_pop_ocupada_2019 *100/tx_pop_ocupada_2010) - 100)
 
 base_atributos |> 
@@ -1880,7 +1817,7 @@ base_atributos |>
   DT::datatable()
 ```
 
--   O munípio que apresentou a maior redução relativa da taxa de ocupação foi Cabroso do Pernambuco. (**No entanto o registro de população ocupada de 2010 foi 52.909, valor atípico considerando a série histórica**)
+-   O munípio que apresentou a maior redução relativa da taxa de ocupação foi Cabrobo do Pernambuco. (**No entanto o registro de população ocupada de 2010 foi 52.909, valor atípico considerando a série histórica**)
 
 ```{r}
 base_atributos |> 
@@ -1980,8 +1917,6 @@ h + i
 ```
 
 Apenas abaixo conseguimos identificar uma diferença: as cidades onde os médicos permaneceram tiveram, em média, mais vagas de medicina em comparação às cidades de onde migraram.
-
-**ALEF, COLOCA MEDIANA E DESVIO-PADRAO NA TABELA ABAIXO. FIZ NAS DEMAIS, COMPLEMENTA ONDE NÃO TIVER**
 
 ```{r}
 base_atributos |> 
@@ -2385,7 +2320,7 @@ base_atributos |>
   DT::datatable()
 ```
 
-**O municípios com o maior investimento per capita em infraestrutura é Itanagra da Bahia.**
+-   O municípios com o maior investimento per capita em infraestrutura é Itanagra da Bahia.
 
 ```{r}
 base_atributos |> 
@@ -2512,5 +2447,85 @@ base_atributos |>
 base_atributos |> 
   filter(equipamentos_culturais == max(equipamentos_culturais, na.rm = TRUE)) |> 
   select(cns, uf_destino, municipio_destino, populacao, pib_percapita, equipamentos_culturais, churn) |> 
+  DT::datatable()
+```
+
+#### 1.4.5.4 Distância da capital
+
+Este dado foi coletado da plataforma Google Maps, e mostra a distância dos municípios que receberam médicos do programa até a capital da respectiva unidade federativa.
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(
+                    sprintf("DRIVER=Dremio Connector;
+                             HOST=%s;
+                             PORT=%s;
+                             UID=%s;
+                             PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM Dados.distancias."distancias_municipios_capitais.parquet"'
+
+
+distancia_capital <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+distancia_capital <- distancia_capital |> 
+  select(cod_municipio, km) |> 
+  rename(distancia_capital = km)
+
+base_atributos <- base_atributos |> 
+  left_join(distancia_capital, by = c("ibge_aloc" = "cod_municipio"))
+
+base_atributos |> 
+  distinct(distancia_capital) |> 
+  summarise(média = mean(distancia_capital))
+```
+
+A média de distância dos municípios que receberam médicos em relação a sua capital é de 364 km. Ao desagregar por churn, conforme boxplot abaixo, observamos uma mediana maior nos munípios em que médicos permaneceram.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = distancia_capital,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Equipamentos por 100 mil habitantes") +
+  ylab("Equipamentos esportivos")
+
+b <- base_atributos |> 
+  distinct(ibge_aloc, distancia_capital) |> 
+  ggplot(aes(x = distancia_capital)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Equipamentos por 100 mil habitantes")
+
+a + b
+```
+
+Assim como na mediana, a média é maior entre os que permaneceram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = round(mean(distancia_capital),2),
+            mediana = round(median(distancia_capital),2),
+            sd = round(sd(distancia_capital),2)) |> 
   DT::datatable()
 ```
