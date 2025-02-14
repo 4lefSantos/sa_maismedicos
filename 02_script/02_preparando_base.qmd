@@ -920,204 +920,34 @@ wilcox.test(anos_formacao ~ churn, data = base_atributos)
 **Contando o número de CPF's na base e verificando se possui mais de um registro associado ao CPF.**
 
 ```{r}
-count_cpf_atributos <- base_atributos |> 
-  group_by(cpf_prof) |> 
-  count()
+
+count_cpf_atributos <- 
+  base_atributos |> 
+    group_by(cpf_prof) |> 
+    count()
+
 ```
 
 ## 1.3. Atributos a nível estabelecimento
 
-Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos que receberam médicos do programa, tais como, número de leitos e profissionais.
+Nessa seção, serão levantadas as variáveis associadas aos estabelecimentos que receberam médicos do programa, tais como, profissionais de outras categorias profissionais.
 
-Mas antes de prosseguirmos, adicionaremos a variável `cnes` que identifica o estabelecimento localizada no dataframe `temp2` , isso será importante para agregar as variáveis dessa seção.
-
-```{r}
-
-
-temp3 <- base_tratada |> 
-  mutate(aps = if_else(TP_UNID %in% c("02", "01", "32", "71", "72", "74"), 
-                       "APS", "Outros")) |> 
-  mutate(ano = year(COMPETEN)) |> 
-  filter(ano %in% c(2019, 2020, 2021, 2022, 2023, 2024)) |> 
-  mutate(assumiu_programa = 
-           if_else(ano %in% c(2019, 2020, 2021, 2022, 2023, 2024) & 
-                   aps == 'APS' & 
-                   CODUFMUN == ibge_aloc, 
-                   "Foi alocado", 
-                   "Não foi alocado"))
-  
-data_cnes <- temp3 |> 
-  filter(assumiu_programa == "Foi alocado") |> 
-  distinct(CPF_PROF, CNES, ano) |> 
-  filter(CPF_PROF %in% churn$cpf_prof)
-
-
-teste <- base_atributos |> 
-  filter(!cpf_prof %in% data_cnes$CPF_PROF)
-```
-
-**A contagem de número de CPF's únicos foi igual que na base de atributos.**
-
-```{r}
-count_cpf_cnes <- data_cnes |> 
-  group_by(CPF_PROF) |> 
-  count()
-```
-
-### 1.3.1 Número de leitos das unidades
-
-Este passo consiste em identificar qual o número de leitos nas unidades de APS as quais o indivíduo foi alocado.
-
-``` sql
-SELECT 
-    substr(lt.COMPETEN, 1, 4) as ano,
-    lt.cnes,
-    m.uf_sigla,
-    CASE
-        WHEN LENGTH(m.cod_municipio) = 7 THEN SUBSTR(m.cod_municipio, 1, 6)
-        WHEN m.cod_municipio LIKE '53%' THEN '530010'
-        ELSE m.cod_municipio
-    END AS cod_ibge,    
-    m.municipio,
-    SUM(lt.QT_SUS) AS quantidade_sus,
-    SUM(lt.QT_NSUS) AS quantidade_nao_sus,
-    SUM(lt.QT_SUS) + SUM(lt.QT_NSUS) AS qt_total
-FROM
-    Dados.cnes.LT lt 
-LEFT JOIN 
-    "Open Analytics Layer".Territorial."Hierarquia completa dos municípios" m 
-    ON lt.CODUFMUN = CAST(m.cod_municipio AS CHAR)
-WHERE 
-    substr(lt.COMPETEN, 5, 2) = '01' AND 
-    substr(lt.COMPETEN, 1, 4) > 2018 AND
-    cnes IN (lista)
-GROUP BY
-    ano,
-    m.uf_sigla,
-    cod_ibge,
-    m.municipio,
-    lt.cnes
-```
-
-Baixando dados de leitos.
-
-```{r}
-# codigo para acessar dados de datalake proprio 
-
-dremio_host <- Sys.getenv("endereco")
-dremio_port <- Sys.getenv("port")
-dremio_uid <- Sys.getenv("uid")
-dremio_pwd <- Sys.getenv("datalake")
-
-
-channel <- odbcDriverConnect(sprintf("DRIVER=Dremio Connector;
-                                     HOST=%s;
-                                     PORT=%s;
-                                     UID=%s;
-                                     PWD=%s;
-                                     AUTHENTICATIONTYPE=Basic Authentication;
-                                     CONNECTIONTYPE=Direct", 
-                         dremio_host, 
-                         dremio_port, 
-                         dremio_uid, 
-                         dremio_pwd))
-
-query <- 'SELECT * FROM "@alef_santos"."pmmb_leitos_v2"'
-
-
-
-leitos <- sqlQuery(channel, query, 
-                     as.is = TRUE)
-
-```
-
-Acessando dados de leitos das unidades de APS as quais os indivíduos foram alocados.
+O tratamento abaixo é realizado para acessar todos os profissionais que assumiram o programa e as unidades de APS que ele atuou enquanto esteve no município ao qual foi alocado.
 
 ```{r}
 
-leitos_unidades <- 
-  leitos |> 
-  mutate(Ano = as.numeric(Ano)) |> 
-  filter(CNES %in% data_cnes$CNES) |> 
-  select(CNES, Ano, leitos_instalacao_fisica_urgencia)
-  
 
-data_cnes_2 <- data_cnes |>
-  left_join(leitos_unidades, 
-            by = c("CNES" = "CNES", "ano" = "Ano")) |> 
-  group_by(CPF_PROF) |> 
-  summarise(m_leitos_instalacao_fisica_urgencia = 
-              mean(leitos_instalacao_fisica_urgencia))
+temp3 <- 
+  base_tratada3 |> 
+            filter(cpf_prof %in% churn$cpf_prof &
+                   tp_unid %in% c("02", "01", "32", 
+                                  "71", "72", "74") &
+                   codufmun == ibge_aloc) 
+                     
 
-base_atributosT <- base_atributos |> 
-  left_join(data_cnes_2, by = c("cpf_prof" = "CPF_PROF"))
-
-base_atributos |> 
-  distinct(CNES, leitos_instalacao_fisica_urgencia) |> 
-  summarise(média = round(mean(leitos_instalacao_fisica_urgencia),2))
 ```
 
-**Pela contagem abaixo, existem 4 CNES no data_cnes que não está no dataframe leitos_unidades, mas estão associados a 4 cpf distintos, portanto não justifca o tamanho de NA's na variável de leitos.**
-
-```{r}
-count_leitos <- data_cnes |> 
-  filter(!CNES %in% leitos_unidades$CNES)
-```
-
-A média de leitos de instalação física de urgência dos estabelecimentos que receberam médicos do programa é de 5,95 e ao desagregar por churn, não há uma diferença visualmente clara entre daqueles que permaneceram e migraram.
-
-```{r}
-a <- base_atributos |> 
-  ggplot(aes(x = leitos_instalacao_fisica_urgencia,
-             fill = churn)) +
-  geom_boxplot() + 
-  coord_flip() +
-  theme(legend.position = "top") +
-  theme(axis.text.x = element_blank()) +
-  xlab("Número de leitos") +
-  ylab("Leitos de instalação física de urgência")
-
-b <- base_atributos |>
-  distinct(CNES, leitos_instalacao_fisica_urgencia) |> 
-  ggplot(aes(x= leitos_instalacao_fisica_urgencia)) + 
-  geom_histogram() +
-  xlab("Leitos de instalação física de urgência") +
-  ylab("Frequência")
-
-a + b
-```
-
-Em termos de média, a diferença também parece não ser relevante.
-
-```{r}
-
-base_atributos |> 
-  group_by(churn) |> 
-  summarise(media = round(mean(leitos_instalacao_fisica_urgencia),2),
-            mediana = round(median(leitos_instalacao_fisica_urgencia),2),
-            sd = round(sd(leitos_instalacao_fisica_urgencia),2)) |> 
-  DT::datatable()
-```
-
--   O estabelecimento de saúde com o maior número de leitos fica em Mazagao no Amapá com 25 leitos.
-
-```{r}
-base_atributos |> 
-  filter(leitos_instalacao_fisica_urgencia == max(leitos_instalacao_fisica_urgencia)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, leitos_instalacao_fisica_urgencia) |> 
-  DT::datatable()
-```
-
--   O estabelecimento de saúde com o menor número de leitos fica no Distrito Sanitário Especial Indigena Médio Perus no Amazonas com 0 leitos.
-
-```{r}
-base_atributos |> 
-  filter(leitos_instalacao_fisica_urgencia == min(leitos_instalacao_fisica_urgencia)) |> 
-  select(nome, uf_destino, municipio_destino, CNES, leitos_instalacao_fisica_urgencia) |> 
-  DT::datatable()
-```
-
-### 1.3.2 Número de profissionais das unidades
+### 1.3.1 Número de profissionais das unidades
 
 Este passo consiste em identificar qual o número de profissionais nas unidades de APS as quais o indivíduo foi alocado.
 
@@ -1235,7 +1065,7 @@ equipe_saude2 <-
   
 equipe_saude3 <- 
     equipe_saude2 |> 
-    filter(CNES %in% data_cnes$CNES) |> 
+    filter(CNES %in% temp3$cnes) |> 
     group_by(CNES, ANO, categoria) |> 
     summarise(FTE40 = mean(FTE40)) |> 
     ungroup() |> 
