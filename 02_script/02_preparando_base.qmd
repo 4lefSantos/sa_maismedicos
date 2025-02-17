@@ -2524,8 +2524,40 @@ Assim como na mediana, a média é maior entre os que permaneceram.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(distancia_capital),2),
-            mediana = round(median(distancia_capital),2),
-            sd = round(sd(distancia_capital),2)) |> 
+  summarise(media = 
+              round(mean(distancia_capital),2),
+            mediana = 
+              round(median(distancia_capital),2),
+            sd = 
+              round(sd(distancia_capital),2)) |> 
   DT::datatable()
+```
+
+2.  Armazenando resultados
+
+Depois de realizados todos os pontos, vamos deixar a base pronta para rodar modelos preditivos.
+
+```{r}
+
+base_final <- base_atributos |> 
+                    select(meses_no_local_alocado,
+                           churn, idade, 
+                           atuacao_previa_no_municipio, 
+                           anos_atuacao_previa_no_municipio,
+                           media_vinculos_mes, Prorrogado,
+                           m_agente_saude, m_tec_aux_enf,
+                           m_enfermeiro, m_dentista, 
+                           regiao_destino, populacao, 
+                           porte, pib_percapita, 
+                           variacao_pib, pop_ocupada_2019,
+                           var_taxa_ocupacao, 
+                           orcamento_saude, esgotamento_sanitario,
+                           taxa_homicidio, ideb_anosfinais, 
+                           ideb_anosfinais, investimento_infraestrutura, equipamentos_esportivos,
+                           equipamentos_culturais, distancia_capital)
+
+writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.xlsx")
+
+write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.csv")
+
 ```
