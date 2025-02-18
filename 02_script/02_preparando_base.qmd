@@ -1841,7 +1841,7 @@ SELECT cod_ibge, SUM(vagas) AS vagas_medicina
 
 FROM "Open Analytics Layer"."Educação"."Quantidade de vagas, matriculados, concluintes e inscritos em curso superior por município"
 
-WHERE curso = 'Medicina'
+WHERE curso = 'Medicina' and ano = 2019
 
 GROUP BY(cod_ibge)
 ```
