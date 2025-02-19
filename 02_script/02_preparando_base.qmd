@@ -89,10 +89,6 @@ A partir dos resultados do edital do 18º Ciclo do PMMB, identificamos os médic
 
 Após a transformação em planilha dos resultados do edital e a identificação do CNS pela raspagem, abriremos esses dados que representam 2452 médicos. Para alguns médicos, não foi possível identificar o número de CNS (265 médicos). Isso ocorre devido à presença de homônimos.
 
-Para identificar o sexo, utilizamos a função `get_gender()` a partir dos nomes. No entanto, não foi possível a identificação em 144 profissionais. Isso ocorre, pois são nomes que podem ser assumidos por ambos os sexos.
-
-Restando o número de 2043 médicos.
-
 ```{r}
 
 cns_inscricao <- 
@@ -111,11 +107,6 @@ cns_inscricao <-
   rename(uf_destino = uf_aloc) |> 
   mutate(cns = as.character(cns)) |>  
   filter(!is.na(cns))
-
-cns_inscricao <- 
-  cns_inscricao |> 
-  mutate(sexo = get_gender(nome)) |> 
-  filter(!is.na(sexo))
 
 ```
 
