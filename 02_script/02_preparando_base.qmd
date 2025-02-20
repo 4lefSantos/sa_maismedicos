@@ -108,9 +108,15 @@ cns_inscricao <-
   mutate(cns = as.character(cns)) |>  
   filter(!is.na(cns))
 
+#Como o registro CNS de dois médicos gerados pela raspagem ser proveniente de uma falha, iremos atualizar com os números CNS corretos que retornam registros.
+
+cns_inscricao$cns <- gsub("709009835268418", "980016294141538", cns_inscricao$cns)
+cns_inscricao$cns <- gsub("700301975418435", "100001866830003", cns_inscricao$cns)
 ```
 
 Com base nesse resultado final, extraímos todos os CNS em um vetor para executar uma consulta no datalake, a fim de identificar os respectivos CPFs. Cabe mencionar que estes CPFs são criptografados, mas que podem ser utilizados como chave de identificação individualizada.
+
+No entanto, houveram dois CNS's que não retornaram registros na consulta: RENATO PINTO DA CUNHA SANTOS (709009835268418) e GILVAN DOREA DANTAS (700301975418435). Para esses casos, foi realizada a consulta pelo nome com o devido confronto com as informações retornadas na página do CNES, e identificados os CNS's e CPF's.
 
 Essa consulta gerou uma base denominada CNES_cns.
 
@@ -174,7 +180,7 @@ CNES_cns <- sqlQuery(channel, query,
 
 lista_cpf <- 
   CNES_cns |> 
-  filter(COMPETEN >= 201901) |> 
+  filter(COMPETEN >= 201001) |> 
   mutate(CNS_PROF = as.character(CNS_PROF)) |> 
   select(CPF_PROF, CNS_PROF, 
          NOMEPROF) |> 
@@ -182,7 +188,7 @@ lista_cpf <-
 
 ```
 
-Observa-se que a lista de CPF's retornou apenas 2034 observações (nove a menos que o original). Esse número reduzido é devido a médicos duplicados em razão de registros com letras de nomes trocadas. Agora já identificada a variável CPF_PROF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF_PROF.
+Observa-se que a lista de CPF's retornou apenas 2185 observações (duas a menos que o original). Agora já identificada a variável CPF_PROF, executaremos a consulta abaixo para baixar os dados completos dos profissionais pelos respectivos CPF_PROF.
 
 **Observação**: Este procedimento foi realizado, pois nem sempre o CNS é preenchido pelos estabelecimentos. Portanto, optamos por pegar o CPF criptografado, pois o grau de preenchimento possui maior completude.
 
@@ -257,7 +263,7 @@ No entanto, como a base de inscrição não possui a variável CPF, primeiro ser
 
 lista_cns_cpf <- 
         CNES_cns |> 
-        filter(COMPETEN >= 201901) |> 
+        filter(COMPETEN >= 201001) |> 
         mutate(CNS_PROF = as.character(CNS_PROF)) |> 
         select(CPF_PROF, CNS_PROF) |> 
         distinct(CPF_PROF, CNS_PROF)
@@ -322,7 +328,7 @@ temp <-
 temp2 <- temp |> 
         filter(assumiu_programa == "Foi alocado") |> 
         group_by(CPF_PROF) |> 
-        slice_min(COMPETEN)
+        slice_min(COMPETEN, n = 1, with_ties = FALSE)
 
 vetor_saida <- 
   lista_cns_cpf |> 
@@ -332,7 +338,7 @@ dim(vetor_saida)
 
 ```
 
-Cerca de 387 indivíduos saíram da base, pois não assumiram o programa. Abaixo temos alguns exemplos.
+Cerca de 419 indivíduos saíram da base, pois não assumiram o programa. Abaixo temos alguns exemplos.
 
 -   A médica, cujo código CPF criptografado é "\<82\>\<83\>~\<82\>\<80\>~\<80\>}{{", foi designada ao município de José de Freitas (PI). Porém, ao longo do ano de 2019 ela não esteve nenhum mês no município. Os primeiros registros dela após 2019 foram apenas no ano de 2022 em Epitaciolândia (AC).
 
@@ -378,7 +384,7 @@ base_tratada |>
 
 ```
 
-Logo retirando os 363 casos acima, mantemos 1670 indivíduos na base. Desta forma, mantivemos uma base 203.350 observações.
+Logo retirando os 419 casos acima, mantemos 1768 indivíduos na base. Desta forma, mantivemos uma base 222.818 observações.
 
 ```{r}
 
@@ -399,7 +405,7 @@ base_tratada2 <-
            cns_prof, cpf_prof, 
            data_nascimento, data_formacao, 
            participou_pmmb, 
-           sexo, ch_total) |>
+           ch_total) |>
     filter(competen >= '2019-01-01')
 
 ```
@@ -416,7 +422,7 @@ Criamos duas variáveis de desfecho:
 
 A variável de desfecho foi construída com o objetivo de verificar se a pessoa sai do município onde foi designada cerca de cinco anos após o início do programa (final de 2024). Lembrando que o programa tem duração de 48 meses.
 
-Cerca de 562 saiu da região e 898 permanece na região.
+Cerca de 1203 saiu da região e 361 permanece na região.
 
 ```{r}
 
@@ -439,7 +445,7 @@ table(churn$churn)
 
 ```
 
-É importante observar que o somatório é 1460 (1130 + 330), ou seja, menor que o número inicial. Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
+É importante observar que o somatório é 1564 (1203 + 361), ou seja, menor que o número inicial. Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
 
 Abaixo colocamos alguns exemplos que ocorreram isso.
 
@@ -477,7 +483,7 @@ base_tratada |>
 
 ```
 
-A base a seguir exclui os casos de indivíduos que não estavam atuando mais no final de 2024 (independente de estarem no município onde foram alocados ou não), que resulta em 1460 indivíduos.
+A base a seguir exclui os casos de indivíduos que não estavam atuando mais no final de 2024 (independente de estarem no município onde foram alocados ou não), que resulta em 1564 indivíduos.
 
 ```{r}
 
@@ -526,7 +532,7 @@ base_tratada |>
 
 ```
 
-A média do tempo de atuação no mesmo local é de aproximadamente 43 meses.
+A média do tempo de atuação no mesmo local é de aproximadamente 44 meses.
 
 ```{r}
 
@@ -560,7 +566,7 @@ base_vd <-
 
 Vamos fazer algumas análises exploratórias iniciais.
 
-Percebe-se que em alguns estados houve uma migração mais elevada, que são os casos de Roraima, Sergipe e Alagoas.
+Percebe-se que em alguns estados houve uma migração mais elevada, que são os casos de Rio Grande do Norte, Sergipe e Alagoas.
 
 ```{r}
 
@@ -782,9 +788,9 @@ Os resultados abaixos ratificam os resultados do gráfico.
 base_atributos |> 
   group_by(churn) |> 
   summarise(media_vinculos = 
-              mean(media_vinculos_mes),
+              round(mean(media_vinculos_mes),2),
             sd_vinculos = 
-              sd(media_vinculos_mes))
+              round(sd(media_vinculos_mes),2))
 
 ```
 
@@ -813,16 +819,16 @@ base_atributos |>
 
 ```
 
-Dos 1460 médicos, 623 (42,64%) tiveram sua adesão prorrogada por mais um ano e 837 (57,33%) não prorrogaram.
+Dos 1564 médicos, 687 (43,91%) tiveram sua adesão prorrogada por mais um ano e 877 (56,07%) não prorrogaram.
 
-Abaixo visualizaremos a informação desagregada por churn. A prorrogação foi superior entre aqueles que permaneceram.
+Abaixo visualizaremos a informação desagregada por churn. A permanência foi maior entre aqueles que prorrogaram.
 
 ```{r}
 base_atributos |> 
   group_by(churn, Prorrogado) |> 
   count() |> 
-  ggplot(aes(x = churn, 
-             y = n, fill = Prorrogado)) +
+  ggplot(aes(x = Prorrogado, 
+             y = n, fill = churn)) +
   geom_col(position = "fill") +
   coord_flip() + 
   theme_minimal()
@@ -863,7 +869,7 @@ print(paste("Média:", round(mean(anos_formado$anos_formacao),2)))
 print(paste("Mediana: ", round(median(anos_formado$anos_formacao),2)))
 ```
 
-A média do tempo de formação são de 5,2 anos, no entanto como há muitos outliers calcula-se também a mediana que é de 1,8 anos, dessa forma, observa-se que a maioria dos médicos tem até 2 anos de formação.
+A média do tempo de formação são de 5,45 anos, no entanto como há muitos outliers calcula-se também a mediana que é de 1,8 anos, dessa forma, observa-se que a maioria dos médicos tem até 2 anos de formação.
 
 Ao desagregar por churn, observa-se que o tempo de formação é maior entre os permanceram nas cidades em que foram alocados.
 
@@ -905,17 +911,6 @@ base_atributos |>
 ```{r}
 
 wilcox.test(anos_formacao ~ churn, data = base_atributos)
-
-```
-
-**Contando o número de CPF's na base e verificando se possui mais de um registro associado ao CPF.**
-
-```{r}
-
-count_cpf_atributos <- 
-  base_atributos |> 
-    group_by(cpf_prof) |> 
-    count()
 
 ```
 
@@ -1137,7 +1132,7 @@ A seguir, os **técnicos e auxiliares de enfermagem**.
 mean(base_atributos$m_tec_aux_enf, na.rm = TRUE)
 ```
 
-A média de técnicos e auxiliares de enfermagem nos estabelecimentos é de 2,98. Ao desagregar por churn, pelo boxplot abaixo, é possível observar uma mediana maior entre os que permanecem.
+A média de técnicos e auxiliares de enfermagem nos estabelecimentos é de 3. Ao desagregar por churn, pelo boxplot abaixo, é possível observar uma mediana maior entre os que permanecem.
 
 ```{r}
 a <- base_atributos |> 
@@ -1333,7 +1328,7 @@ ggplot(data = distribuicao_uf_sf) +
 
 ```
 
-Ceará foi a unidade federativa que mais recebeu médicos do programa, no entanto a retenção ficou em 19º lugar as das melhores retenção conforme pode ser visto na tabela abaixo.
+Ceará foi a unidade federativa que mais recebeu médicos do programa, no entanto a retenção ficou em 21º lugar as das melhores retenção conforme pode ser visto na tabela abaixo.
 
 ```{r}
 base_atributos |> 
@@ -1361,7 +1356,7 @@ O porte dos município, conforme o IBGE, é classificado de acordo com sua popul
 **Grande Porte**: Entre 100.000 e 900.000 habitantes.\
 **Metrópole**: Mais de 900.000 habitantes.
 
-Observa-se que a maioria dos médicos foi alocada em cidades de até 50 mil habitantes, visto que PP I e PP II representam aproximadamente 65% dos destinos.
+Observa-se que a maioria dos médicos foi alocada em cidades de até 50 mil habitantes, visto que PP I e PP II representam aproximadamente 64% dos destinos.
 
 ```{r}
 #Carregando a base de contigente populacional
@@ -1500,7 +1495,7 @@ base_atributos |>
   summarise(média = mean(pib_percapita))
 ```
 
-A média do PIB per capita dos municípios é de R\$ 18.049,82. Ao desagregar por churn, é possível observar uma mediana maior entre os que permanecem.
+A média do PIB per capita dos municípios é de R\$ 17.898,23. Ao desagregar por churn, é possível observar uma mediana maior entre os que permanecem.
 
 ```{r}
 c <- base_atributos |> 
@@ -1730,95 +1725,6 @@ base_atributos |>
   DT::datatable()
 ```
 
-#### 1.4.1.3.1 Variação da população ocupada entre anos
-
-Os dados da população ocupada foram coletados da Estatísticas do Cadastro Central de Empresas (CEMPRE) de 2010 do IBGE por meio do SIDRA, tabela 1685.
-
-E calculamos o percentual da população ocupada com os dados do Censo 2010 por meio do SIDRA, tabela 1378.
-
-```{r}
-pop_ocupada_2010 <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/pop_ocupada_mun.xlsx") |> 
-    select(cod_ibge, `2010`) |> 
-  rename(pop_ocupada_2010 = `2010`) |> 
-  mutate(cod_ibge = substring(cod_ibge, 1, 6)) |> 
-  mutate(pop_ocupada_2010 = as.numeric(pop_ocupada_2010))
-
-base_atributos <- base_atributos |> 
-  left_join(pop_ocupada_2010, by = c("ibge_aloc" = "cod_ibge"))
-
-censo_2010 <-  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/censo_2010.xlsx") |> 
-  select(-municipio) |> 
-  mutate(cod_ibge = substring(cod_ibge, 1, 6))
-
-base_atributos <- base_atributos |> 
-  left_join(censo_2010, by = c("ibge_aloc" = "cod_ibge"))
-
- 
-base_atributos <- base_atributos |>  
-  mutate(tx_pop_ocupada_2010 = (pop_ocupada_2010/populacao_2010)*100) |> 
-  mutate(var_taxa_ocupacao = (tx_pop_ocupada_2019 *100/tx_pop_ocupada_2010) - 100)
-
-base_atributos |> 
-  distinct(ibge_aloc, var_taxa_ocupacao) |> 
-  summarise(média = mean(var_taxa_ocupacao))
-```
-
-A taxa de ocupação apresentou um crescimento relativo de 19,6% entre 2010 e 2019 nos municípios que receberam médicos do programa. Ao desagregar por churn no boxplot abaixo não é possível ver diferença entre os que migraram e permaneceram.
-
-```{r}
-a <- base_atributos |> 
-  ggplot(aes(x = var_taxa_ocupacao,
-             fill = churn)) +
-  geom_boxplot() + 
-  coord_flip() +
-  theme(legend.position = "top") +
-  xlab("Percentual") +
-  ylab("Taxa de ocupação") +
-  theme(axis.text.x = element_blank())
-
-b <- base_atributos |>  
-  distinct(ibge_aloc, var_taxa_ocupacao) |> 
-  ggplot(aes(x = var_taxa_ocupacao)) +   
-  geom_histogram() +    
-  xlab("Taxa de ocupação") +   
-  ylab("Frequência")  
-
-a + b
-```
-
-Em termos de média, os valores também são bem próximos.
-
-```{r}
-base_atributos |> 
-  group_by(churn) |> 
-  summarise(media = round(mean(var_taxa_ocupacao),2),
-            mediana = round(median(var_taxa_ocupacao),2),
-            sd = round(sd(var_taxa_ocupacao),2)) |> 
-  DT::datatable()
-```
-
--   A cidade que apresentou o maior crescimento relativo da taxa de ocupação foi Guaribas do Piauí.
-
-```{r}
-base_atributos |> 
-  filter(var_taxa_ocupacao == max(var_taxa_ocupacao)) |> 
-  select(cns, uf_destino, municipio_destino, 
-         populacao,tx_pop_ocupada_2010,tx_pop_ocupada_2019, var_taxa_ocupacao, 
-         churn) |> 
-  DT::datatable()
-```
-
--   O munípio que apresentou a maior redução relativa da taxa de ocupação foi Cabrobo do Pernambuco. (**No entanto o registro de população ocupada de 2010 foi 52.909, valor atípico considerando a série histórica**)
-
-```{r}
-base_atributos |> 
-  filter(var_taxa_ocupacao == min(var_taxa_ocupacao)) |> 
-  select(cns, uf_destino, municipio_destino, 
-         populacao,tx_pop_ocupada_2010,tx_pop_ocupada_2019, var_taxa_ocupacao, 
-         churn) |> 
-  DT::datatable()
-```
-
 ### 1.4.2 Indicadores de saúde
 
 A seguir, as variáveis relacionadas a qualidade e acesso à saúde.
@@ -1887,7 +1793,7 @@ base_atributos |>
 
 ```
 
-A média de vagas de medicina por mil habitantes é de 0,3 e visualmente pelo boxplot abaixo não é possível observar diferença desagregada por churn, entende-se apenas que a maioria dos municípios não tem vagas em cursos de medicina.
+A média de vagas de medicina por mil habitantes é de aproximadamente 0,04 e visualmente pelo boxplot abaixo não é possível observar diferença desagregada por churn, entende-se apenas que a maioria dos municípios não tem vagas em cursos de medicina.
 
 ```{r}
 h <- base_atributos |> 
@@ -1918,7 +1824,7 @@ base_atributos |>
   DT::datatable()
 ```
 
--   A cidade com maior número de vagas de medicina foi Cajazeiras da Paraiba com 22 por mil habitantes.
+-   A cidade com maior número de vagas de medicina foi Goiatuba da Goiás com 3,75 por mil habitantes.
 
 ```{r}
 base_atributos |> 
@@ -1948,7 +1854,7 @@ base_atributos |>
   summarise(média = mean(orcamento_saude))
 ```
 
-A média de orçamento de saúde dos municípios é de R\$ 697,27 e conforme boxplot abaixo não é possível identificar diferença desagregada por churn.
+A média de orçamento de saúde dos municípios é de R\$ 695,63 e conforme boxplot abaixo não é possível identificar diferença desagregada por churn.
 
 ```{r}
 a <- base_atributos |> 
@@ -2071,7 +1977,7 @@ base_atributos |>
   summarise(Média = mean(taxa_homicidio))
 ```
 
-A média da taxa de homicídio dos municípios que receberam médicos do programa é de 26,1 a cada 100 mil habitantes. Na desagregação por churn no boxplot abaixo, a mediana dos municípios de indivíduos que permaneceram é ligeiramente maior.
+A média da taxa de homicídio dos municípios que receberam médicos do programa é de 25,6 a cada 100 mil habitantes. Na desagregação por churn no boxplot abaixo, a mediana dos municípios de indivíduos que permaneceram é ligeiramente maior.
 
 ```{r}
 a <- base_atributos |> 
@@ -2105,7 +2011,7 @@ base_atributos |>
   DT::datatable()
 ```
 
--   O município com maior índice de homicídio é Jussara da Bahia e que recebeu dois médicos do programa.
+-   O município com maior índice de homicídio é Jussari da Bahia e que recebeu dois médicos do programa.
 
 ```{r}
 base_atributos |> 
@@ -2134,7 +2040,7 @@ base_atributos |>
   summarise(média = mean(ideb_anosiniciais, na.rm = TRUE))
 ```
 
-A média dos municípios que receberam médicos do programa é de 5,38. E quando desagregado por churn a mediana dos municípios com médicos que migraram é maior em comparação aos do que permaneceram conforme boxplot abaixo.
+A média dos municípios que receberam médicos do programa é de 5,36. E quando desagregado por churn a mediana dos municípios com médicos que migraram é maior em comparação aos do que permaneceram conforme boxplot abaixo.
 
 ```{r}
 a <- base_atributos |> 
@@ -2162,9 +2068,9 @@ Assim como na mediana, a média também indica diferença.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(ideb_anosiniciais),2),
-            mediana = round(median(ideb_anosiniciais),2),
-            sd = round(sd(ideb_anosiniciais),2)) |> 
+  summarise(media = round(mean(ideb_anosiniciais, na.rm = TRUE), 2),
+            mediana = round(median(ideb_anosiniciais, na.rm = TRUE), 2),
+            sd = round(sd(ideb_anosiniciais, na.rm = TRUE), 2)) |> 
   DT::datatable()
 ```
 
@@ -2204,7 +2110,7 @@ base_atributos |>
   summarise(média = mean(ideb_anosfinais, na.rm = TRUE))
 ```
 
-A média da nota ideb dos anos finais é de 4,29, e assim como na nota dos anos inicias, a nota maior nos municípios com médicos que migraram conforme boxplot.
+A média da nota ideb dos anos finais é de 4,28, e assim como na nota dos anos inicias, a nota maior nos municípios com médicos que migraram conforme boxplot.
 
 ```{r}
 
@@ -2233,9 +2139,9 @@ Em termos de média, a diferença é decimal.
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(ideb_anosfinais),2),
-            mediana = round(median(ideb_anosfinais),2),
-            sd = round(sd(ideb_anosfinais),2)) |> 
+  summarise(media = round(mean(ideb_anosfinais, na.rm = TRUE),2),
+            mediana = round(median(ideb_anosfinais, na.rm = TRUE),2),
+            sd = round(sd(ideb_anosfinais, na.rm = TRUE),2)) |> 
   DT::datatable()
 ```
 
@@ -2278,7 +2184,7 @@ base_atributos |>
   summarise(média = mean(investimento_infraestrutura))
 ```
 
-A média per capita do investimento em infraestrutura dos municípios é de R\$ 3.283,30. Ao desagregar por churn, é possível observar uma mediana maior nas cidades de médicos que migraram.
+A média per capita do investimento em infraestrutura dos municípios é de R\$ 3.310,47. Ao desagregar por churn, é possível observar uma mediana maior nas cidades de médicos que migraram.
 
 ```{r}
 a <- base_atributos |> 
@@ -2398,7 +2304,7 @@ base_atributos |>
   summarise(média = mean(equipamentos_culturais))
 ```
 
-A média de equipamentos culturais por 100 mil habitantes é de 13,5. Ao desagregar por churn, a mediana é maior entre os que migraram conforme boxplot abaixo.
+A média de equipamentos culturais por 100 mil habitantes é de 13,4. Ao desagregar por churn, a mediana é maior entre os que migraram conforme boxplot abaixo.
 
 ```{r}
 a <- base_atributos |> 
@@ -2540,15 +2446,14 @@ base_final <- base_atributos |>
                            m_enfermeiro, m_dentista, 
                            regiao_destino, populacao, 
                            porte, pib_percapita, 
-                           variacao_pib, pop_ocupada_2019,
-                           var_taxa_ocupacao, 
+                           variacao_pib, tx_pop_ocupada_2019,
                            orcamento_saude, esgotamento_sanitario,
                            taxa_homicidio, ideb_anosfinais, 
                            ideb_anosfinais, investimento_infraestrutura, equipamentos_esportivos,
                            equipamentos_culturais, distancia_capital)
 
-writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.xlsx")
+writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_completa.xlsx")
 
-write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.csv")
+write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_completa.csv")
 
 ```
