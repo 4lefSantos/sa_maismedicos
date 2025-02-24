@@ -699,6 +699,13 @@ base_atributos$anos_atuacao_previa_no_municipio[is.na(base_atributos$anos_atuaca
 
 ```
 
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = mean(anos_atuacao_previa_no_municipio),
+            sd = sd(anos_atuacao_previa_no_municipio))
+```
+
 ### 1.3.3 Quantidade média de vínculos enquanto está na mesma cidade
 
 Para isso, vamos verificar, desde de meados de 2019, quantos vínculos o indivíduos tinha por competência no mesmo município onde ele foi alocado.
@@ -2438,7 +2445,7 @@ Depois de realizados todos os pontos, vamos deixar a base pronta para rodar mode
 
 base_final <- base_atributos |> 
                     select(meses_no_local_alocado,
-                           churn, idade, 
+                           churn, idade, anos_formacao,
                            atuacao_previa_no_municipio, 
                            anos_atuacao_previa_no_municipio,
                            media_vinculos_mes, Prorrogado,
@@ -2452,8 +2459,8 @@ base_final <- base_atributos |>
                            ideb_anosfinais, investimento_infraestrutura, equipamentos_esportivos,
                            equipamentos_culturais, distancia_capital)
 
-writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_completa.xlsx")
+writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.xlsx")
 
-write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_completa.csv")
+write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.csv")
 
 ```
