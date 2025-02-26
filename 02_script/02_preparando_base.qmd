@@ -620,6 +620,9 @@ base_vd |>
   summarise(idade_media = mean(idade),
             idade_sd = sd(idade))
 
+shapiro.test(base_atributos$idade)
+
+wilcox_test(idade ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 Os gráficos abaixo ratificam os resultados.
@@ -704,6 +707,11 @@ base_atributos |>
   group_by(churn) |> 
   summarise(media = mean(anos_atuacao_previa_no_municipio),
             sd = sd(anos_atuacao_previa_no_municipio))
+
+
+shapiro.test(base_atributos$anos_atuacao_previa_no_municipio)
+
+wilcox_test(anos_atuacao_previa_no_municipio ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 ### 1.3.3 Quantidade média de vínculos enquanto está na mesma cidade
@@ -799,6 +807,9 @@ base_atributos |>
             sd_vinculos = 
               round(sd(media_vinculos_mes),2))
 
+shapiro.test(base_atributos$media_vinculos_mes)
+
+wilcox_test(media_vinculos_mes ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 ### 1.2.6 Renovação
@@ -874,6 +885,11 @@ base_atributos <-
 
 print(paste("Média:", round(mean(anos_formado$anos_formacao),2)))
 print(paste("Mediana: ", round(median(anos_formado$anos_formacao),2)))
+
+
+shapiro.test(base_atributos$anos_formacao)
+
+wilcox_test(anos_formacao ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 A média do tempo de formação são de 5,45 anos, no entanto como há muitos outliers calcula-se também a mediana que é de 1,8 anos, dessa forma, observa-se que a maioria dos médicos tem até 2 anos de formação.
