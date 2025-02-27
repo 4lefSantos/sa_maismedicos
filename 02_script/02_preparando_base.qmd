@@ -835,6 +835,11 @@ base_atributos |>
   mutate(percentual = round(quantidade/sum(quantidade)* 100,2)) |> 
   DT::datatable()
 
+churn_prorrogou <- table(base_atributos$churn[base_atributos$Prorrogado == "SIM"])
+chisq.test(churn_prorrogou)
+
+churn_nprorrogou <- table(base_atributos$churn[base_atributos$Prorrogado == "NÃO"])
+chisq.test(churn_nprorrogou)
 ```
 
 Dos 1564 médicos, 687 (43,91%) tiveram sua adesão prorrogada por mais um ano e 877 (56,07%) não prorrogaram.
@@ -1147,6 +1152,10 @@ base_atributos |>
             mediana = round(median(m_agente_saude, na.rm = TRUE),2),
             sd = round(sd(m_agente_saude, na.rm = TRUE),2)) |> 
   DT::datatable()
+
+shapiro.test(base_atributos$m_agente_saude)
+
+wilcox_test(m_agente_saude ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 A seguir, os **técnicos e auxiliares de enfermagem**.
@@ -1187,6 +1196,10 @@ base_atributos |>
             mediana = round(median(m_tec_aux_enf, na.rm = TRUE),2),
             sd = round(sd(m_tec_aux_enf, na.rm = TRUE),2)) |> 
   DT::datatable()
+
+shapiro.test(base_atributos$m_tec_aux_enf)
+
+wilcox_test(m_tec_aux_enf ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 A seguir, os **enfermeiros**.
@@ -1228,6 +1241,10 @@ base_atributos |>
             mediana = round(median(m_enfermeiro, na.rm = TRUE),2),
             sd = round(sd(m_enfermeiro, na.rm = TRUE),2)) |> 
   DT::datatable()
+
+shapiro.test(base_atributos$m_enfermeiro)
+
+wilcox_test(m_enfermeiro ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 A seguir, os **dentistas**.
@@ -1267,6 +1284,10 @@ base_atributos |>
             mediana = round(median(m_dentista, na.rm = TRUE),2),
             sd = round(sd(m_dentista, na.rm = TRUE),2)) |> 
   DT::datatable()
+
+shapiro.test(base_atributos$m_dentista)
+
+wilcox_test(m_dentista ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 ## 1.4. Atributos a nível município
@@ -1860,7 +1881,7 @@ base_atributos |>
 
 #### 1.4.2.3 Orçamento per capita para a saúde
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. E o cálculo realizado é: Gasto total em saúde ÷ População total do município.
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. E o cálculo realizado é: Gasto total em saúde ÷ População total do município.
 
 ```{r}
 orcamento_saude <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
@@ -1930,7 +1951,7 @@ base_atributos |>
 
 #### 1.4.2.4 População atendida com esgotamento sanitário
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o SNIS do ano de 2020. O método de cálculo é: População total atendida com esgotamento sanitário ÷ População total do município (x100).
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o SNIS do ano de 2020. O método de cálculo é: População total atendida com esgotamento sanitário ÷ População total do município (x100).
 
 ```{r}
 esgoto_sanitario <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
@@ -1984,7 +2005,7 @@ base_atributos |>
 
 #### 1.4.3.1 Taxa de homicídio
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número total de mortes por homicídio ÷ População total (x100.000).
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o DataSUS de 2019. O método de cálculo é: Número total de mortes por homicídio ÷ População total (x100.000).
 
 ```{r}
 tx_homicidio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
@@ -2047,7 +2068,7 @@ base_atributos |>
 
 #### 1.4.4.1 IDEB anos iniciais
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
 
 ```{r}
 ideb_inicio <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
@@ -2117,7 +2138,7 @@ base_atributos |>
 
 #### 1.4.4.1 IDEB anos finais
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o MEC / IDEB de 2019. Método: Nota do Índice de Desenvolvimento da Educação Básica (IDEB) - Rede municipal - Anos Iniciais.
 
 ```{r}
 ideb_final <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
@@ -2190,7 +2211,7 @@ base_atributos |>
 
 #### 1.4.5.1 Investimento público em infraestrutura urbana por habitante
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o SICONFI e IBGE PIB MUNICIPAL de 2019. Método: Valor do investimento público em infraestrutura ÷ Número de habitantes.
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é o SICONFI e IBGE PIB MUNICIPAL de 2019. Método: Valor do investimento público em infraestrutura ÷ Número de habitantes.
 
 ```{r}
 
@@ -2251,7 +2272,7 @@ base_atributos |>
 
 #### 1.4.5.2 Equipamentos esportivos municipais
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é a MUNIC de 2018. Método: Número total de equipamentos esportivos públicos ÷ População total do município (x100.000).
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é a MUNIC de 2018. Método: Número total de equipamentos esportivos públicos ÷ População total do município (x100.000).
 
 ```{r}
 equip_esportivos <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
@@ -2311,7 +2332,7 @@ base_atributos |>
 
 #### 1.4.5.3 Centros Culturais, casas e espaços de cultura
 
-Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades – Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é a MUNIC de 2019. Método: Número de centros culturais, espaços e casas de cultura públicos e privados ÷ População total do município (x100.000).
+Este dado foi coletado do Índice de Desenvolvimento Sustentável das Cidades -- Brasil (IDSC-BR), base de dados de 2022 no link: <https://www.cidadessustentaveis.org.br/paginas/idsc-br>. A fonte primária é a MUNIC de 2019. Método: Número de centros culturais, espaços e casas de cultura públicos e privados ÷ População total do município (x100.000).
 
 ```{r}
 equip_culturais <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/indicadores_idsc_2022.xlsx") |> 
