@@ -62,7 +62,7 @@ library(patchwork)
 library(geobr)
 library(sf)
 library(scales)
-
+library(rstatix)
 
 
 ```
@@ -110,8 +110,14 @@ cns_inscricao <-
 
 #Como o registro CNS de dois médicos gerados pela raspagem ser proveniente de uma falha, iremos atualizar com os números CNS corretos que retornam registros.
 
-cns_inscricao$cns <- gsub("709009835268418", "980016294141538", cns_inscricao$cns)
-cns_inscricao$cns <- gsub("700301975418435", "100001866830003", cns_inscricao$cns)
+cns_inscricao$cns <- gsub("709009835268418",
+                          "980016294141538", 
+                          cns_inscricao$cns)
+
+cns_inscricao$cns <- gsub("700301975418435",
+                          "100001866830003",
+                          cns_inscricao$cns)
+
 ```
 
 Com base nesse resultado final, extraímos todos os CNS em um vetor para executar uma consulta no datalake, a fim de identificar os respectivos CPFs. Cabe mencionar que estes CPFs são criptografados, mas que podem ser utilizados como chave de identificação individualizada.
@@ -420,9 +426,9 @@ Criamos duas variáveis de desfecho:
 
 ### 1.2.1. Churn
 
-A variável de desfecho foi construída com o objetivo de verificar se a pessoa sai do município onde foi designada cerca de cinco anos após o início do programa (final de 2024). Lembrando que o programa tem duração de 48 meses.
+A variável de desfecho foi construída com o objetivo de verificar se a pessoa sai do município onde foi designada cerca de cinco anos após o início do programa (final de 2024). Lembrando que o programa tem duração de 36 meses (3 anos), podendo haver prorrogação por mais um ano.
 
-Cerca de 1203 saiu da região e 361 permanece na região.
+Cerca de 1203 saiu do município para onde foi alocado e 361 permanecem.
 
 ```{r}
 
@@ -433,29 +439,43 @@ churn <-
            if_else(codufmun == ibge_aloc, 
                    "permanece", 
                    "migrou")) |> 
-  select(cpf_prof, churn) |> 
-  distinct() |>  
-# Se o individuo estiver atuando no mesmo municipio e em outra localidade limitrofe, vamos marcar como "permanece". O codigo abaixo faz isso 
-  arrange(cpf_prof, churn) |> 
-  group_by(cpf_prof) |> 
-  slice(1) |> 
-  ungroup()
+  select(cpf_prof, codufmun, ibge_aloc, churn) |> 
+  distinct() 
 
-table(churn$churn)
+# Se o individuo estiver atuando no mesmo municipio e em outra localidade limitrofe, vamos marcar como "permanece". Os codigos abaixo servem para termos este controle
 
+churn_permanece <- churn |> 
+                    filter(churn == "permanece") |>                     group_by(cpf_prof) |> 
+                    slice(1) |> 
+                    select(cpf_prof, churn)
+
+churn_migrou <- churn |> 
+                      filter(churn == "migrou") |> 
+                        group_by(cpf_prof) |> 
+                        slice(1)  
+
+teste_churn <-  
+  cns_inscricao |> 
+    filter(CPF_PROF %in% unique(churn$cpf_prof)) |>
+    left_join(churn_permanece,
+              by = c("CPF_PROF"="cpf_prof")) |> 
+    mutate(churn = if_else(is.na(churn),
+                           "migrou",
+                           churn))
+
+table(teste_churn$churn)
+ 
 ```
 
-É importante observar que o somatório é 1564 (1203 + 361), ou seja, menor que o número inicial. Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
+É importante observar que o somatório é 1564 (950 migraram + 614 permanecem), ou seja, menor que o número inicial.
+
+Isso decorre, pois alguns profissionais podem ter saído da base (ex.: migrou do país, migrou de atuação, aposentou, óbito, passou a atuar em locais que não possuem registro no CNES).
 
 Abaixo colocamos alguns exemplos que ocorreram isso.
 
 -   O primeiro caso é um profissional identificado por "\<83\>\<82\>\<82\>\|\<81\>\<83\>\<84\>{" que ficou poucos meses em Olinda (PE), município ao qual foi alocado. Porém, os seus registros na base se encerram em maio de 2023.
 
 ```{r}
-
-teste_churn <- temp2 |> 
-  left_join(churn, 
-            by = c("CPF_PROF"="cpf_prof"))
 
 base_tratada |> 
   filter(CPF_PROF == "~<83><82>~<82>|<81><83><84>{") |> 
@@ -489,6 +509,23 @@ A base a seguir exclui os casos de indivíduos que não estavam atuando mais no 
 
 base_tratada3 <- base_tratada2 |>    
   filter(cpf_prof %in% churn$cpf_prof) 
+
+```
+
+#### 1.2.2.1. Gráfico de sankey
+
+Preparando o gráfico de sankey para visualizar as migrações.
+
+```{r}
+
+migracoes <- teste_churn |> 
+  filter(churn == "migrou") |> 
+  select(CPF_PROF, 
+         ibge_aloc, 
+         uf_destino, 
+         municipio_destino) |> 
+  left_join(churn_migrou, 
+            by = c("CPF_PROF"="cpf_prof"))
 
 ```
 
@@ -559,8 +596,13 @@ base_vd <-
   filter(CPF_PROF %in% churn$cpf_prof) |> 
   left_join(meses_trabalho,
             by = c("CPF_PROF"="cpf_prof")) |> 
-  left_join(churn,
-            by = c("CPF_PROF"="cpf_prof"))
+  left_join(churn_permanece,
+            by = c("CPF_PROF"="cpf_prof")) |> 
+  mutate(churn = if_else(is.na(churn),
+                         "migrou",
+                         churn))
+
+table(base_vd$churn)
 
 ```
 
@@ -620,9 +662,6 @@ base_vd |>
   summarise(idade_media = mean(idade),
             idade_sd = sd(idade))
 
-shapiro.test(base_atributos$idade)
-
-wilcox_test(idade ~ churn, data = base_atributos, alternative = "two.sided")
 ```
 
 Os gráficos abaixo ratificam os resultados.
@@ -703,6 +742,7 @@ base_atributos$anos_atuacao_previa_no_municipio[is.na(base_atributos$anos_atuaca
 ```
 
 ```{r}
+
 base_atributos |> 
   group_by(churn) |> 
   summarise(media = mean(anos_atuacao_previa_no_municipio),
@@ -938,7 +978,8 @@ base_atributos |>
 
 ```{r}
 
-wilcox.test(anos_formacao ~ churn, data = base_atributos)
+wilcox.test(anos_formacao ~ churn, 
+            data = base_atributos)
 
 ```
 
@@ -1148,14 +1189,19 @@ Em termos de média, têm-se que o número de agentes é maior nos estabelecimen
 
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(m_agente_saude, na.rm = TRUE),2),
-            mediana = round(median(m_agente_saude, na.rm = TRUE),2),
-            sd = round(sd(m_agente_saude, na.rm = TRUE),2)) |> 
+  summarise(media = round(mean(m_agente_saude, 
+                               na.rm = TRUE),2),
+            mediana = round(median(m_agente_saude, 
+                                   na.rm = TRUE),2),
+            sd = round(sd(m_agente_saude, 
+                          na.rm = TRUE),2)) |> 
   DT::datatable()
 
 shapiro.test(base_atributos$m_agente_saude)
 
-wilcox_test(m_agente_saude ~ churn, data = base_atributos, alternative = "two.sided")
+wilcox_test(m_agente_saude ~ churn, 
+            data = base_atributos, 
+            alternative = "two.sided")
 ```
 
 A seguir, os **técnicos e auxiliares de enfermagem**.
@@ -1192,21 +1238,27 @@ Em termos de média, os que permaneceram atuavam em estabelecimentos com uma mé
 
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(m_tec_aux_enf, na.rm = TRUE),2),
-            mediana = round(median(m_tec_aux_enf, na.rm = TRUE),2),
-            sd = round(sd(m_tec_aux_enf, na.rm = TRUE),2)) |> 
+  summarise(media = round(mean(m_tec_aux_enf, 
+                               na.rm = TRUE),2),
+            mediana = round(median(m_tec_aux_enf, 
+                                   na.rm = TRUE),2),
+            sd = round(sd(m_tec_aux_enf, 
+                          na.rm = TRUE),2)) |> 
   DT::datatable()
 
 shapiro.test(base_atributos$m_tec_aux_enf)
 
-wilcox_test(m_tec_aux_enf ~ churn, data = base_atributos, alternative = "two.sided")
+wilcox_test(m_tec_aux_enf ~ churn, 
+            data = base_atributos, 
+            alternative = "two.sided")
 ```
 
 A seguir, os **enfermeiros**.
 
 ```{r}
 
-mean(base_atributos$m_enfermeiro, na.rm = TRUE)
+mean(base_atributos$m_enfermeiro, 
+     na.rm = TRUE)
 
 ```
 
@@ -1237,20 +1289,26 @@ Em termos de média, os estabelecimentos em que os profissionais permanecem tem 
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(m_enfermeiro, na.rm = TRUE),2),
-            mediana = round(median(m_enfermeiro, na.rm = TRUE),2),
-            sd = round(sd(m_enfermeiro, na.rm = TRUE),2)) |> 
+  summarise(media = round(mean(m_enfermeiro, 
+                               na.rm = TRUE),2),
+            mediana = round(median(m_enfermeiro, 
+                                   na.rm = TRUE),2),
+            sd = round(sd(m_enfermeiro, 
+                          na.rm = TRUE),2)) |> 
   DT::datatable()
 
 shapiro.test(base_atributos$m_enfermeiro)
 
-wilcox_test(m_enfermeiro ~ churn, data = base_atributos, alternative = "two.sided")
+wilcox_test(m_enfermeiro ~ churn, 
+            data = base_atributos, 
+            alternative = "two.sided")
 ```
 
 A seguir, os **dentistas**.
 
 ```{r}
-mean(base_atributos$m_dentista, na.rm = TRUE)
+mean(base_atributos$m_dentista, 
+     na.rm = TRUE)
 ```
 
 A média é de 1,3 dentistas nos estabelecimentos que receberam médicos do programa. Ao desagregar por churn no boxplot abaixo é possível observar uma mediana maior entre os que permanecem.
@@ -1280,9 +1338,12 @@ E em termos de média, o número de dentistas é maior entre os que permaneceram
 ```{r}
 base_atributos |> 
   group_by(churn) |> 
-  summarise(media = round(mean(m_dentista, na.rm = TRUE),2),
-            mediana = round(median(m_dentista, na.rm = TRUE),2),
-            sd = round(sd(m_dentista, na.rm = TRUE),2)) |> 
+  summarise(media = round(mean(m_dentista, 
+                               na.rm = TRUE),2),
+            mediana = round(median(m_dentista, 
+                                   na.rm = TRUE),2),
+            sd = round(sd(m_dentista, 
+                          na.rm = TRUE),2)) |> 
   DT::datatable()
 
 shapiro.test(base_atributos$m_dentista)
@@ -1820,7 +1881,8 @@ vagas_medicina <- sqlQuery(channel, query,
 
 base_atributos <- 
   base_atributos |> 
-  left_join(vagas_medicina, by = c("ibge_aloc" = "cod_ibge")) |> 
+  left_join(vagas_medicina, 
+            by = c("ibge_aloc" = "cod_ibge")) |> 
   mutate(vagas_medicina = as.numeric(vagas_medicina)) |> 
   mutate(vagas_medicina_milhab = (vagas_medicina/populacao)*1000) |> 
   mutate(vagas_medicina = 
@@ -2474,9 +2536,9 @@ base_atributos |>
   DT::datatable()
 ```
 
-2.  Armazenando resultados
+# 2. Armazenando resultados
 
-Depois de realizados todos os pontos, vamos deixar a base pronta para rodar modelos preditivos.
+epois de realizados todos os pontos, vamos deixar a base pronta para rodar modelos preditivos.
 
 ```{r}
 
@@ -2496,8 +2558,8 @@ base_final <- base_atributos |>
                            ideb_anosfinais, investimento_infraestrutura, equipamentos_esportivos,
                            equipamentos_culturais, distancia_capital)
 
-writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.xlsx")
+writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem0303.xlsx")
 
-write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem.csv")
+write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem0303.csv")
 
 ```

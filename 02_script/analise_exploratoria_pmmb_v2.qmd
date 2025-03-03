@@ -2028,18 +2028,28 @@ wilcox.test(distancia_capital ~ churn, data = data, alternative = "two.sided")
 E nessa última seção, é grafada um diagrama de sunkey que ilustrar como os médicos se deslocaram a nível estadual desde o início no programa até 01/12/2023 que é o período que marca 4,5 anos desde o 18º Ciclo do programa.
 
 ```{r}
-teste <- read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_sankeyplot.xlsx") |> 
+
+teste <- 
+  read_excel("~/GitHub/sa_maismedicos/01_dados/Editais/2019/base_sankeyplot.xlsx") |> 
   mutate(regiao_destino = case_when(
-    (uf_destino %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
-    (uf_destino %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
-    (uf_destino %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_destino %in% c("AM", "AP", "TO", 
+                       "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_destino %in% c("BA", "AL", "RN", "SE", 
+                       "PI", "PB", "CE", "MA", 
+                       "PE")) ~ "Nordeste",
+    (uf_destino %in% c("GO", "MT", "MS", 
+                       "DF")) ~ "Centro-oeste",
     (uf_destino %in% c("SC", "RS", "PR")) ~ "Sul",
-    (uf_destino %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
+    (uf_destino %in% c("SP", "RJ", "ES", 
+                       "MG")) ~ "Sudeste",
     TRUE ~ "Outro")) |> 
   mutate(regiao_final = case_when(
-    (uf_final %in% c("AM", "AP", "TO", "AC", "RR", "RO", "PA")) ~ "Norte",
-    (uf_final %in% c("BA", "AL", "RN", "SE", "PI", "PB", "CE", "MA", "PE")) ~ "Nordeste",
-    (uf_final %in% c("GO", "MT", "MS", "DF")) ~ "Centro-oeste",
+    (uf_final %in% c("AM", "AP", "TO", 
+                     "AC", "RR", "RO", "PA")) ~ "Norte",
+    (uf_final %in% c("BA", "AL", "RN", "SE", "PI", 
+                     "PB", "CE", "MA", "PE")) ~ "Nordeste",
+    (uf_final %in% c("GO", "MT", "MS", 
+                     "DF")) ~ "Centro-oeste",
     (uf_final %in% c("SC", "RS", "PR")) ~ "Sul",
     (uf_final %in% c("SP", "RJ", "ES", "MG")) ~ "Sudeste",
     TRUE ~ "Outro"))
@@ -2060,7 +2070,7 @@ transicoes$source <- match(transicoes$source, regioes_unicas_origem) - 1
 transicoes$target <- match(transicoes$target, regioes_unicas_destino) + length(regioes_unicas_origem) - 1  # Ajusta a posição do nó de destino
 
 # Gerar o gráfico de Sankey
-sankey <- plot_ly(
+sankey <- plotly::plot_ly(
   type = "sankey",
   domain = list(x = c(0, 1), y = c(0, 1)),
   orientation = "h",  # Para garantir que os nós fiquem na horizontal
