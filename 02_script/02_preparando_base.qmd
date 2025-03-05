@@ -63,6 +63,7 @@ library(geobr)
 library(sf)
 library(scales)
 library(rstatix)
+library(ggalluvial)
 
 
 ```
@@ -525,8 +526,91 @@ migracoes <- teste_churn |>
          uf_destino, 
          municipio_destino) |> 
   left_join(churn_migrou, 
-            by = c("CPF_PROF"="cpf_prof"))
+            by = c("CPF_PROF"="cpf_prof")) |> 
+  janitor::clean_names() |> 
+  rename(mun_aloc = ibge_aloc_x,
+         uf_aloc = uf_destino,
+         municipio_aloc = municipio_destino) |> 
+  select(cpf_prof, uf_aloc, mun_aloc,
+         municipio_aloc, codufmun, churn)
 
+#write.csv(migracoes,
+#          "~/GitHub/sa_maismedicos/01_dados/dados #resultantes/base_grafico_sankey.csv")
+
+```
+
+Vamos agora juntar este df com a base com a classificação dos municípios em termos de porte para depois fazer o sankey plot.
+
+```{r}
+
+pop_mun <- 
+  read_excel("~/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
+  mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
+  mutate(populacao = as.numeric(populacao)) |> 
+  mutate(porte = 
+           case_when((populacao < 20000) ~ "PP-I",
+                     (populacao >= 20000 & 
+                      populacao < 50000) ~ "PP-II",
+                     (populacao >= 50000 & 
+                      populacao < 100000) ~ "MP",
+                     (populacao >= 100000 & 
+                      populacao < 900000) ~ "GP",
+                     (populacao >= 900000) ~ "Metrópole",
+                      TRUE ~ "Outros casos")) |> 
+  select(-populacao)
+
+migracoes$mun_aloc <- as.character(migracoes$mun_aloc)
+
+migracoes_tratado <- 
+  migracoes |> 
+  left_join(pop_mun, 
+            by = c("mun_aloc"="cod_mun")) |> 
+  left_join(pop_mun,
+            by = c("codufmun"="cod_mun")) |> 
+  select(cpf_prof, uf_aloc, mun_aloc, 
+         municipio_aloc, porte.x, 
+         codufmun, mun.y, porte.y) |> 
+  rename(porte_mun_alocado = porte.x,
+         porte_mun_migrado = porte.y,
+         mun_migrado = mun.y)
+
+
+```
+
+Agora criando o gráfico de sankey.
+
+```{r}
+
+total_migracoes <- migracoes_tratado |> 
+                      group_by(porte_mun_alocado,
+                               porte_mun_migrado) |> 
+                      summarise(total = n()) 
+
+#write_xlsx(total_migracoes, "~/GitHub/sa_maismedicos/01_dados/dados #resultantes/migracoes_porte.xlsx")
+
+totais_alocado <- migracoes_tratado |> 
+  count(porte_mun_alocado, name = "total") 
+
+totais_migrado <- migracoes_tratado |> 
+  count(porte_mun_migrado, name = "total") 
+
+a <- migracoes_tratado |> 
+  ggplot(aes(axis1 = porte_mun_alocado, 
+             axis2 = porte_mun_migrado)) +
+    geom_alluvium(aes(fill = porte_mun_alocado)) +
+    geom_stratum() +
+    geom_text(stat = "stratum", 
+              aes(label = after_stat(stratum))) +
+    theme_minimal() +
+    labs(title = "Fluxo de Migração entre Portes de Municípios",
+         y = "Total", 
+         x = "Porte do município alocado e Porte do município de destino") +
+    theme(axis.text.x = element_blank(),
+          legend.title = element_blank())
+
+ggsave("sankey_plot.jpeg", a, dpi = 300,
+       width = 6, height = 4)
+    
 ```
 
 ### 1.2.2. Tempo de permanência
@@ -1469,7 +1553,7 @@ Observa-se que a maioria dos médicos foi alocada em cidades de até 50 mil habi
 pop_mun <- 
   read_excel("~/GitHub/sa_maismedicos/01_dados/pop_municipios.xlsx") |> 
   mutate(cod_mun = substr(cod_mun, 1, 6)) |> 
-  mutate(populacao = as.numeric(populacao))
+  mutate(populacao = as.numeric(populacao)) 
 
 base_atributos$ibge_aloc <- as.character(base_atributos$ibge_aloc)
 
