@@ -2620,6 +2620,153 @@ base_atributos |>
   DT::datatable()
 ```
 
+#### 1.4.5.5 Estabelecimentos de saúde por município
+
+A seguir é levantado, com base na base de dados CNES-ST, o número de estabelecimentos de saúde por município. A tabela abaixo descreve o tipo de estabelecimentos agregados.
+
++----------------------------------+----------------+
+| Tipo de estabelecimento          | Categoria      |
++==================================+:==============:+
+| Hospital Geral;                  | Hospitais      |
+|                                  |                |
+| Hospital Especializado.          |                |
++----------------------------------+----------------+
+| Pronto-socorro;                  | Pronto-socorro |
+|                                  |                |
+| Pronto-atendimento.              |                |
++----------------------------------+----------------+
+| Clínica/Centro de Especialidade; | Clínicas       |
+|                                  |                |
+| Consultório Isolado.             |                |
++----------------------------------+----------------+
+
+``` sql
+WITH consulta1 AS (
+SELECT  ano,
+        cod_regsaud,
+        regiao_saude,
+        cod_ibge,
+        municipio,
+        descricao,
+        CASE
+            WHEN descricao = 'Hospital Geral' OR descricao = 'Hospital Especializado' THEN 'Hospitais'
+            WHEN descricao = 'Pronto-Socorro Especializado' OR descricao = 'Pronto-Socorro Geral' THEN 'Pronto-socorro'
+            WHEN descricao = 'Consultório Isolado' OR descricao = 'Clínica/Centro de Especialidade' THEN 'Clínicas'
+        END descricao_recode,
+        nivel_atencao,
+        CAST(numero_estabelecimentos as INTEGER) as qntd
+FROM "Open Analytics Layer".Infraestrutura."Razão de estabelecimentos de saúde por população"
+WHERE ano IN (2019, 2020, 2021, 2022, 2023, 2024) AND descricao IN ('Pronto-Socorro Especializado', 'Pronto-Socorro Geral', 'Hospital Geral', 'Hospital Especializado', 'Consultório Isolado', 'Clínica/Centro de Especialidade')
+),
+
+consulta2 AS (
+SELECT ano,
+        municipio,
+        cod_ibge,
+        descricao_recode,
+        SUM(qntd) AS qntd
+FROM consulta1
+    GROUP BY ano, municipio, cod_ibge, descricao_recode
+)
+
+SELECT municipio,
+        cod_ibge,
+        descricao_recode,
+        AVG(qntd) AS qntd_estabelecimentos_medio
+FROM consulta2
+    GROUP BY municipio, descricao_recode, cod_ibge
+```
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(
+                    sprintf("DRIVER=Dremio Connector;
+                             HOST=%s;
+                             PORT=%s;
+                             UID=%s;
+                             PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmm_estabelecimentos_municipio"'
+
+
+estabelecimentos_mun <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+estabelecimentos_mun2 <- estabelecimentos_mun |> 
+  mutate(qntd_estabelecimentos_medio = round(qntd_estabelecimentos_medio, 2)) |> 
+  pivot_wider(names_from = descricao_recode, 
+              values_from = qntd_estabelecimentos_medio,
+              names_glue = "{descricao_recode}_muni")
+
+estabelecimentos_mun3 <- estabelecimentos_mun2 |> 
+  select(-municipio) 
+
+base_atributos <- base_atributos |> 
+  left_join(estabelecimentos_mun3, by = c("ibge_aloc" = "cod_ibge")) |> 
+  mutate(across(39:41, ~ if_else(is.na(.), 0, .)))
+```
+
+#### 1.4.5.5 Estabelecimentos de saúde por região de saúde
+
+```{r}
+# codigo para acessar dados de datalake proprio 
+
+dremio_host <- Sys.getenv("endereco")
+dremio_port <- Sys.getenv("port")
+dremio_uid <- Sys.getenv("uid")
+dremio_pwd <- Sys.getenv("datalake")
+
+
+channel <- odbcDriverConnect(
+                    sprintf("DRIVER=Dremio Connector;
+                             HOST=%s;
+                             PORT=%s;
+                             UID=%s;
+                             PWD=%s;
+                                     AUTHENTICATIONTYPE=Basic Authentication;
+                                     CONNECTIONTYPE=Direct", 
+                         dremio_host, 
+                         dremio_port, 
+                         dremio_uid, 
+                         dremio_pwd))
+
+query <- 'SELECT * FROM "@alef_santos"."pmm_estabelecimentos_regiaosaude"'
+
+
+estabelecimentos_regsaude <- sqlQuery(channel, query, 
+                     as.is = TRUE)
+```
+
+```{r}
+estabelecimentos_regsaude2 <- estabelecimentos_regsaude |> 
+  mutate(qntd_estabelecimentos_medio = round(qntd_estabelecimentos_medio, 2)) |> 
+  pivot_wider(names_from = descricao_recode, 
+              values_from = qntd_estabelecimentos_medio,
+              names_glue = "{descricao_recode}_regsaud")
+
+estabelecimentos_regsaude3 <- estabelecimentos_regsaude2 |> 
+  select(-cod_regsaud, -regiao_saude) 
+
+base_atributos <- base_atributos |> 
+  left_join(estabelecimentos_regsaude3, by = c("ibge_aloc" = "cod_municipio")) |> 
+  mutate(across(42:44, ~ if_else(is.na(.), 0, .)))
+```
+
 # 2. Armazenando resultados
 
 epois de realizados todos os pontos, vamos deixar a base pronta para rodar modelos preditivos.
@@ -2640,10 +2787,13 @@ base_final <- base_atributos |>
                            orcamento_saude, esgotamento_sanitario,
                            taxa_homicidio, ideb_anosfinais, 
                            ideb_anosfinais, investimento_infraestrutura, equipamentos_esportivos,
-                           equipamentos_culturais, distancia_capital)
+                           equipamentos_culturais, distancia_capital,
+                           Hospitais_regsaud, Hospitais_muni,
+                           `Pronto-socorro_regsaud`, `Pronto-socorro_muni`,
+                           Clínicas_muni, Clínicas_regsaud)
 
-writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem0303.xlsx")
+writexl::write_xlsx(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem0303_v2.xlsx")
 
-write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem0303.csv")
+write.csv(base_final, "~/GitHub/sa_maismedicos/01_dados/dados resultantes/df_modelagem0303_v2.csv")
 
 ```
