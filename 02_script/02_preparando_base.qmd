@@ -2719,9 +2719,144 @@ estabelecimentos_mun3 <- estabelecimentos_mun2 |>
 base_atributos <- base_atributos |> 
   left_join(estabelecimentos_mun3, by = c("ibge_aloc" = "cod_ibge")) |> 
   mutate(across(39:41, ~ if_else(is.na(.), 0, .)))
+
+base_atributos |> 
+  distinct(ibge_aloc, Hospitais_muni, Clínicas_muni, `Pronto-socorro_muni`) |> 
+  summarise(média_hospitais = mean(Hospitais_muni),
+            média_clinicas = mean(Clínicas_muni),
+            média_pronto_socorro = mean(`Pronto-socorro_muni`))
 ```
 
-#### 1.4.5.5 Estabelecimentos de saúde por região de saúde
+A média de hospitais, clínicas e prontos-socorros nos municípios que receberam médicos do programa são de, respectivamente, 1,33, 23,1 e 0,09. Abaixo será analisado as médias desagregadas por churn.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = Hospitais_muni,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Quantidade de hospitais no município") +
+  ylab("Hospitais")
+
+b <- base_atributos |> 
+  distinct(ibge_aloc, Hospitais_muni) |> 
+  ggplot(aes(x = Hospitais_muni)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Quantidade de hospitais no município")
+
+a + b
+```
+
+Pelo boxplot acima, observa-se que o número de hospitais é maior em municípios de profissionais que permaneceram. Isso também é confirmado através da média que pode ser vista abaixo.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = 
+              round(mean(Hospitais_muni),2),
+            mediana = 
+              round(median(Hospitais_muni),2),
+            sd = 
+              round(sd(Hospitais_muni),2)) |> 
+  DT::datatable()
+
+shapiro.test(base_atributos$Hospitais_muni)
+
+wilcox_test(Hospitais_muni ~ churn, data = base_atributos, alternative = "two.sided")
+```
+
+Com relação ao número de clínicas, conforme boxplot abaixo, também é maior entre os municípios de profissionais que permaneceram.
+
+```{r}
+c <- base_atributos |> 
+  ggplot(aes(x = Clínicas_muni,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Quantidade de clínicas no município") +
+  ylab("Clínicas")
+
+d <- base_atributos |> 
+  distinct(ibge_aloc, Clínicas_muni) |> 
+  ggplot(aes(x = Clínicas_muni)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Quantidade de clínicas no município")
+
+c + d
+```
+
+Em termos de média, observa-se a mesma diferença.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = 
+              round(mean(Clínicas_muni),2),
+            mediana = 
+              round(median(Clínicas_muni),2),
+            sd = 
+              round(sd(Clínicas_muni),2)) |> 
+  DT::datatable()
+
+shapiro.test(base_atributos$Clínicas_muni)
+
+wilcox_test(Clínicas_muni ~ churn, data = base_atributos, alternative = "two.sided")
+```
+
+Abaixo, o boxplot de prontos-socorro desagregado por churn, visualmente não é possível identificar diferença.
+
+```{r}
+e <- base_atributos |> 
+  ggplot(aes(x = `Pronto-socorro_muni`,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Quantidade de pronto-socorro no município") +
+  ylab("Pronto-Socorro")
+
+f <- base_atributos |> 
+  distinct(ibge_aloc, `Pronto-socorro_muni`) |> 
+  ggplot(aes(x = `Pronto-socorro_muni`)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Quantidade de pronto-socorro no município")
+
+e + f
+```
+
+Em termos de média, é possível identificar diferença entre os que permaneceram e migraram.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = 
+              round(mean(`Pronto-socorro_muni`),2),
+            mediana = 
+              round(median(`Pronto-socorro_muni`),2),
+            sd = 
+              round(sd(`Pronto-socorro_muni`),2)) |> 
+  DT::datatable()
+
+shapiro.test(base_atributos$`Pronto-socorro_muni`)
+
+wilcox_test(`Pronto-socorro_muni` ~ churn, data = base_atributos, alternative = "two.sided")
+```
+
+```{r}
+a + c + e
+```
+
+#### 1.4.5.6 Estabelecimentos de saúde por região de saúde
+
+A seguir é levantado, com base na base de dados CNES-ST, o número de estabelecimentos de saúde por região de saúde, seguindo a mesma categorização feita anteriormente.
 
 ```{r}
 # codigo para acessar dados de datalake proprio 
@@ -2765,6 +2900,139 @@ estabelecimentos_regsaude3 <- estabelecimentos_regsaude2 |>
 base_atributos <- base_atributos |> 
   left_join(estabelecimentos_regsaude3, by = c("ibge_aloc" = "cod_municipio")) |> 
   mutate(across(42:44, ~ if_else(is.na(.), 0, .)))
+
+base_atributos |> 
+  distinct(ibge_aloc, Hospitais_regsaud, Clínicas_regsaud, `Pronto-socorro_regsaud`) |> 
+  summarise(média_hospitais = mean(Hospitais_regsaud),
+            média_clinicas = mean(Clínicas_regsaud),
+            média_pronto_socorro = mean(`Pronto-socorro_regsaud`))
+```
+
+A média de hospitais, clínicas e prontos-socorros nos municípios que receberam médicos do programa são de, respectivamente, 17,74, 402 e 0,87. Abaixo será analisado as médias desagregadas por churn.
+
+```{r}
+a <- base_atributos |> 
+  ggplot(aes(x = Hospitais_regsaud,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Quantidade de hospitais na região de saúde") +
+  ylab("Hospitais")
+
+b <- base_atributos |> 
+  distinct(ibge_aloc, Hospitais_regsaud) |> 
+  ggplot(aes(x = Hospitais_regsaud)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Quantidade de hospitais na região de saúde")
+
+a + b
+```
+
+Pelo boxplot acima, a diferença entre os que permaneceram e migraram não é expressiva. Em termos de média, pode ser observado na tabela abaixo.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = 
+              round(mean(Hospitais_regsaud),2),
+            mediana = 
+              round(median(Hospitais_regsaud),2),
+            sd = 
+              round(sd(Hospitais_regsaud),2)) |> 
+  DT::datatable()
+
+shapiro.test(base_atributos$Hospitais_regsaud)
+
+wilcox_test(Hospitais_regsaud ~ churn, data = base_atributos, alternative = "two.sided")
+```
+
+Com relação as clínicas, não é possível identificar pelo boxplot abaixo, diferença entre os que migraram e permaneceram.
+
+```{r}
+c <- base_atributos |> 
+  ggplot(aes(x = Clínicas_regsaud,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Quantidade de clínicas na região de saúde") +
+  ylab("Clínicas")
+
+d <- base_atributos |> 
+  distinct(ibge_aloc, Clínicas_regsaud) |> 
+  ggplot(aes(x = Clínicas_regsaud)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Quantidade de clínicas na região de saúde")
+
+c + d
+```
+
+Em termos de média, pelo Teste de Wilcocox, não há diferença entre os dois grupos.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = 
+              round(mean(Clínicas_regsaud),2),
+            mediana = 
+              round(median(Clínicas_regsaud),2),
+            sd = 
+              round(sd(Clínicas_regsaud),2)) |> 
+  DT::datatable()
+
+shapiro.test(base_atributos$Clínicas_regsaud)
+
+wilcox_test(Clínicas_regsaud ~ churn, data = base_atributos, alternative = "two.sided")
+```
+
+E por fim, com relação aos pronto-socorro, também não é possível identificar diferença pelo boxplot abaixo entre os dois grupos.
+
+```{r}
+e <- base_atributos |> 
+  ggplot(aes(x = `Pronto-socorro_regsaud`,
+             fill = churn)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme(axis.text.x = element_blank()) +
+  theme(legend.position = "top") +
+  xlab("Quantidade de pronto-socorro no município") +
+  ylab("Pronto-Socorro")
+
+f <- base_atributos |> 
+  distinct(ibge_aloc, `Pronto-socorro_regsaud`) |> 
+  ggplot(aes(x = `Pronto-socorro_regsaud`)) +
+  geom_histogram() +
+  ylab("Frequência") +
+  xlab("Quantidade de pronto-socorro no município")
+
+e + f
+```
+
+Em termos de média, pelo Teste de Wilcocox, não há diferença entre os dois grupos.
+
+```{r}
+base_atributos |> 
+  group_by(churn) |> 
+  summarise(media = 
+              round(mean(`Pronto-socorro_regsaud`),2),
+            mediana = 
+              round(median(`Pronto-socorro_regsaud`),2),
+            sd = 
+              round(sd(`Pronto-socorro_regsaud`),2)) |> 
+  DT::datatable()
+
+shapiro.test(base_atributos$`Pronto-socorro_regsaud`)
+
+wilcox_test(`Pronto-socorro_regsaud` ~ churn, data = base_atributos, alternative = "two.sided")
+```
+
+```{r}
+a + c + e
 ```
 
 # 2. Armazenando resultados
